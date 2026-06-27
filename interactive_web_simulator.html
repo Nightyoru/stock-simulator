@@ -1,0 +1,2350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>NAS100 Market Replay Game with ✨ AI Copilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.321.0/dist/umd/lucide.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #0d0f17;
+            color: #e2e8f0;
+        }
+        .font-mono-custom {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #11131e;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2b304a;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #474f75;
+        }
+
+        /* ── Mobile / iPhone responsive overrides ────────────────── */
+        @media (max-width: 768px) {
+            /* Let app-shell fill the whole screen on mobile instead of letterbox */
+            #app-shell {
+                width: 100vw !important;
+                height: 100vh !important;
+                /* iOS safe area padding */
+                padding-top: env(safe-area-inset-top);
+                padding-bottom: env(safe-area-inset-bottom);
+                padding-left: env(safe-area-inset-left);
+                padding-right: env(safe-area-inset-right);
+            }
+
+            /* Compact the HUD header */
+            #game-workspace > header {
+                padding: 6px 10px;
+                gap: 6px;
+                font-size: 10px;
+            }
+            #game-workspace > header .text-xs { font-size: 8px; }
+            #game-workspace > header .text-sm { font-size: 10px; }
+            #game-workspace > header > div { gap: 4px; }
+            #game-workspace > header > div > div { gap: 3px; }
+
+            /* Hide non-essential HUD items on very small screens */
+            @media (max-width: 480px) {
+                #game-workspace > header > div:last-child > div:nth-child(2),
+                #game-workspace > header > div:last-child > div:nth-child(3) {
+                    display: none;
+                }
+            }
+
+            /* AI panel hidden by default on mobile */
+            #ai-panel { display: none !important; }
+            #ai-panel-handle { display: none !important; }
+
+            /* Control bar: stack vertically, smaller padding */
+            #game-workspace > div:last-child {
+                padding: 6px 8px;
+                gap: 6px;
+                flex-direction: column;
+                align-items: stretch;
+            }
+            /* Playback row */
+            #game-workspace > div:last-child > div:nth-child(2) { justify-content: center; }
+
+            /* Trade buttons: compact, full-width row */
+            #btn-buy, #btn-sell, #btn-close {
+                padding: 10px 8px;
+                font-size: 11px;
+                flex: 1;
+                justify-content: center;
+            }
+            #btn-buy .lucide, #btn-sell .lucide { display: none; }
+            #btn-buy span, #btn-sell span { font-size: 11px; }
+
+            /* End Simulation button: smaller */
+            #btn-end-game { padding: 8px 12px; font-size: 11px; }
+
+            /* Chart overlay HUD box: smaller on mobile */
+            .absolute.top-4.left-4 {
+                top: 6px !important;
+                left: 6px !important;
+                padding: 6px !important;
+                max-width: 180px !important;
+                font-size: 9px !important;
+            }
+
+            /* Context menu: wider touch targets */
+            #chart-context-menu button {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+
+            /* Start page: full width */
+            #start-page > div {
+                max-width: 100% !important;
+                border-radius: 0 !important;
+            }
+
+            /* Scoreboard: full width */
+            #scoreboard-page > div {
+                max-width: 100% !important;
+                padding: 16px !important;
+            }
+
+            /* Pending orders panel: full width bottom strip */
+            #pending-orders-panel {
+                left: 8px !important;
+                right: 8px !important;
+                bottom: 4px !important;
+                max-width: none !important;
+            }
+        }
+
+        /* Touch-friendly: prevent text selection on interactive elements */
+        button, select, canvas {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden bg-[#0d0f17] flex items-center justify-center">
+
+    <!-- 16:9 Application Shell — largest 16:9 box that fits the viewport -->
+    <div id="app-shell" class="relative overflow-hidden bg-[#0d0f17]" style="width:min(100vw,calc(100vh * 16 / 9));height:min(100vh,calc(100vw * 9 / 16));">
+
+    <!-- STARTING PAGE VIEW -->
+    <div id="start-page" class="absolute inset-0 flex items-center justify-center overflow-y-auto p-6">
+    <div class="w-full max-w-xl bg-[#131722] border border-[#2a2e39] rounded-2xl shadow-2xl space-y-5 p-7">
+        <div class="text-center space-y-2">
+            <div class="inline-flex p-3 bg-[#1e2232] text-emerald-400 rounded-2xl mb-2 border border-emerald-500/10">
+                <i data-lucide="trending-up" class="w-10 h-10"></i>
+            </div>
+            <h1 class="text-3xl font-bold tracking-tight bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">NAS100 Replay Simulator</h1>
+            <p class="text-gray-400 text-sm">Professional backtesting trading simulator built for high performance learning with ✨ AI guidance.</p>
+        </div>
+
+        <!-- File Upload Area -->
+        <div class="p-6 bg-[#161b26] border-2 border-dashed border-[#2a2e39] rounded-xl hover:border-emerald-500/50 transition duration-200 cursor-pointer text-center relative group" id="upload-zone">
+            <input type="file" id="csv-file-input" accept=".csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+            <div class="space-y-2" id="upload-prompt">
+                <i data-lucide="upload-cloud" class="w-8 h-8 text-gray-400 mx-auto group-hover:text-emerald-400 transition-colors"></i>
+                <p class="text-sm font-medium">Drag and drop your <span class="text-emerald-400 font-mono-custom">NAS100_M1_...csv</span> file here</p>
+                <p class="text-xs text-gray-500">or click to browse from your device</p>
+            </div>
+            <div class="hidden space-y-2 text-emerald-400" id="upload-success">
+                <i data-lucide="check-circle" class="w-8 h-8 mx-auto"></i>
+                <p class="text-sm font-medium" id="uploaded-filename">CSV Data Loaded Successfully!</p>
+                <p class="text-xs text-gray-400" id="uploaded-meta">0 rows detected</p>
+            </div>
+        </div>
+
+        <div class="space-y-3">
+            <label class="block text-sm font-medium text-gray-400">Select Starting Date</label>
+            <div class="flex gap-2">
+                <div class="relative flex-1">
+                    <input type="date" id="start-date-input" value="2026-03-16" class="w-full px-4 py-3 bg-[#161b26] border border-[#2a2e39] rounded-xl text-white focus:outline-none focus:border-emerald-500 transition-all font-mono-custom">
+                </div>
+                <button id="btn-use-synthetic" class="px-4 py-2 bg-[#1e2232] hover:bg-[#282d42] border border-[#2a2e39] rounded-xl text-xs text-gray-300 transition-all">
+                    Use Sample Data
+                </button>
+            </div>
+            <p id="date-range-hint" class="text-xs text-gray-500 italic">No custom data parsed yet. Load your CSV or use our pre-generated synthetic dataset starting March 16, 2026.</p>
+        </div>
+
+        <!-- Warning Area -->
+        <div id="date-warning" class="hidden p-4 bg-red-950/40 border border-red-500/20 rounded-xl text-red-200 text-sm flex items-start gap-3">
+            <i data-lucide="alert-triangle" class="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5"></i>
+            <div>
+                <span class="font-semibold">Selected date range unavailable.</span> Please choose another date or ensure your CSV has been parsed correctly.
+            </div>
+        </div>
+
+        <!-- Optional API Key Input -->
+        <div class="space-y-2">
+            <label class="block text-sm font-medium text-gray-400 flex items-center gap-1.5">
+                <i data-lucide="key" class="w-3.5 h-3.5 text-emerald-400"></i>
+                Gemini API Key <span class="text-[10px] text-gray-600 font-normal">(optional — enables ✨ AI features)</span>
+            </label>
+            <div class="relative">
+                <input type="password" id="api-key-input" placeholder="Paste your Gemini API key here..." class="w-full px-4 py-3 bg-[#161b26] border border-[#2a2e39] rounded-xl text-white focus:outline-none focus:border-emerald-500 transition-all font-mono-custom text-sm pr-10">
+                <button type="button" id="btn-toggle-key-vis" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors" title="Show/hide key">
+                    <i data-lucide="eye" class="w-4 h-4" id="key-eye-icon"></i>
+                </button>
+            </div>
+            <p class="text-[10px] text-gray-600 italic">Leave blank to skip AI Copilot, Market Analyst, and Performance Audit features.</p>
+        </div>
+
+        <button id="btn-start-game" class="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-[#0d0f17] font-bold rounded-xl transition duration-200 flex items-center justify-center gap-2 text-lg shadow-lg shadow-emerald-500/10">
+            Launch Simulation
+            <i data-lucide="play" class="w-5 h-5 fill-current"></i>
+        </button>
+    </div>
+    </div><!-- /start-page inner card -->
+    </div><!-- /start-page -->
+
+    <!-- Toast: live session crossed -->
+    <div id="live-session-banner" class="hidden fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 bg-emerald-500 text-[#0d0f17] font-bold rounded-xl shadow-xl text-sm flex items-center gap-2 animate-bounce">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        ▶ LIVE SESSION STARTED — You can now trade!
+    </div>
+    <!-- Toast: tried to trade in history -->
+    <div id="history-trade-warning" class="hidden fixed top-6 left-1/2 -translate-x-1/2 z-50 px-6 py-3 bg-yellow-500 text-[#0d0f17] font-bold rounded-xl shadow-xl text-sm flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        ⚠ You are in HISTORY mode. Advance to SESSION START before trading.
+    </div>
+
+    <!-- MAIN GAME WORKSPACE (Hidden by default) -->
+    <div id="game-workspace" class="hidden absolute inset-0 flex flex-col overflow-hidden">
+        <!-- Top Stats / HUD Header -->
+        <header class="bg-[#131722] border-b border-[#2a2e39] px-6 py-3 flex justify-between items-center flex-wrap gap-4 select-none">
+            <div class="flex items-center gap-6">
+                <!-- Live indicator (shown when in live session) -->
+                <div id="hud-live-indicator" class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse"></span>
+                    <span class="font-semibold tracking-wider text-sm text-gray-200">REPLAY ACTIVE</span>
+                </div>
+                <!-- History badge (shown when viewing pre-start bars) -->
+                <div id="hud-history-badge" class="hidden flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 bg-yellow-400 rounded-full"></span>
+                    <span class="font-semibold tracking-wider text-sm text-yellow-400">VIEWING HISTORY</span>
+                </div>
+                <div class="h-4 w-px bg-[#2a2e39]"></div>
+                <div>
+                    <span class="text-xs text-gray-400 block uppercase">Simulated Time</span>
+                    <span id="hud-sim-time" class="font-mono-custom text-sm font-semibold text-white">2026-03-16 01:14:00</span>
+                </div>
+                <div class="h-4 w-px bg-[#2a2e39]"></div>
+                <div>
+                    <span class="text-xs text-gray-400 block uppercase">Timeframe</span>
+                    <span id="hud-timeframe" class="text-sm font-semibold text-yellow-400">1 Min</span>
+                </div>
+            </div>
+
+            <!-- Position Summary / Quick Account HUD -->
+            <div class="flex items-center gap-8">
+                <div class="text-right">
+                    <span class="text-xs text-gray-400 block uppercase">Active Positions</span>
+                    <span id="hud-position" class="text-sm font-bold text-gray-300">0 (Flat)</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs text-gray-400 block uppercase">Entry Price</span>
+                    <span id="hud-entry-price" class="font-mono-custom text-sm text-gray-300">-</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs text-gray-400 block uppercase">Floating PnL</span>
+                    <span id="hud-floating-pnl" class="font-mono-custom text-sm font-bold text-gray-300">$0.00</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs text-gray-400 block uppercase">Realized Profit</span>
+                    <span id="hud-realized-pnl" class="font-mono-custom text-sm font-bold text-emerald-400">$0.00</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs text-gray-400 block uppercase">Total Balance</span>
+                    <span id="hud-balance" class="font-mono-custom text-sm font-bold text-white">$100,000.00</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Chart Grid + AI Panel Flex Wrapper -->
+        <div class="flex-1 flex min-h-0 relative">
+            <!-- Left Side: Main Trading Chart -->
+            <main class="flex-1 relative bg-[#0d0f17] flex flex-col min-h-0 select-none">
+                <!-- HUD Information Box directly on Chart (Top Left) -->
+                <div class="absolute top-4 left-4 z-10 bg-[#131722]/90 backdrop-blur-md border border-[#2a2e39] p-3 rounded-xl pointer-events-none font-mono-custom text-xs space-y-1 shadow-lg max-w-[280px]">
+                    <div class="flex justify-between gap-4 text-emerald-400 font-semibold" id="hud-asset-name">NAS100 Index</div>
+                    <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-gray-400 pt-1">
+                        <span>O: <span id="ohlc-open" class="text-white">0</span></span>
+                        <span>H: <span id="ohlc-high" class="text-white">0</span></span>
+                        <span>L: <span id="ohlc-low" class="text-white">0</span></span>
+                        <span>C: <span id="ohlc-close" class="text-white">0</span></span>
+                    </div>
+                    <div class="border-t border-[#2a2e39] my-1 pt-1 text-[11px] flex justify-between">
+                        <span class="text-gray-400">MA(50):</span>
+                        <span id="hud-ma" class="text-yellow-400">Calculating...</span>
+                    </div>
+                    <div id="pnl-marker" class="text-[11px] font-bold text-gray-500 pt-0.5">
+                        No active positions
+                    </div>
+                    <div id="hud-pending-count" class="text-[11px] text-yellow-400 pt-0.5 hidden">
+                        0 Pending Orders
+                    </div>
+                </div>
+
+                <!-- Canvas Container -->
+                <div class="flex-1 min-h-0 relative">
+                    <canvas id="chart-canvas" class="w-full h-full block cursor-crosshair"></canvas>
+
+                    <!-- Right-click / Click Context Menu for placing orders -->
+                    <div id="chart-context-menu" class="hidden absolute z-30 bg-[#1a1f2e] border border-[#2a2e39] rounded-xl shadow-2xl p-1 min-w-[200px] select-none" style="backdrop-filter:blur(12px);">
+                        <div class="px-3 py-1.5 text-[10px] text-gray-500 font-mono-custom border-b border-[#2a2e39] mb-1" id="ctx-price-label">Price: 0.0</div>
+                        <button id="ctx-limit-buy" class="w-full px-3 py-2 text-left text-xs text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-all flex items-center gap-2 font-semibold">
+                            <span class="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                            Limit Buy at this price
+                        </button>
+                        <button id="ctx-stop-loss" class="w-full px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-all flex items-center gap-2 font-semibold">
+                            <span class="w-2 h-2 bg-red-400 rounded-full"></span>
+                            Stop Loss at this price
+                        </button>
+                        <div class="border-t border-[#2a2e39] mt-1 pt-1">
+                            <button id="ctx-cancel" class="w-full px-3 py-1.5 text-left text-[11px] text-gray-500 hover:text-gray-300 hover:bg-[#222639] rounded-lg transition-all">Cancel</button>
+                        </div>
+                    </div>
+
+                    <!-- Pending Orders floating panel -->
+                    <div id="pending-orders-panel" class="hidden absolute bottom-4 right-4 z-20 bg-[#131722]/95 border border-[#2a2e39] rounded-xl p-3 min-w-[220px] max-w-[280px] shadow-xl" style="backdrop-filter:blur(8px);">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] font-bold text-yellow-400 uppercase tracking-wider">Pending Orders</span>
+                            <span id="pending-count-badge" class="text-[9px] bg-yellow-500/10 text-yellow-400 px-1.5 py-0.5 rounded font-mono-custom">0</span>
+                        </div>
+                        <div id="pending-orders-list" class="space-y-1.5 max-h-[120px] overflow-y-auto">
+                            <!-- Dynamically populated -->
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Right Side: Collapsible ✨ AI Copilot Panel -->
+            <aside id="ai-panel" class="bg-[#131722] border-l border-[#2a2e39] flex flex-col transition-all duration-300" style="width:20%;min-width:180px;max-width:360px;">
+                <!-- AI Panel Header -->
+                <div class="p-4 border-b border-[#2a2e39] flex items-center justify-between bg-[#11141d]">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-5 h-5 text-emerald-400 animate-pulse"></i>
+                        <span class="font-bold text-sm text-white tracking-wide">✨ AI Trading Copilot</span>
+                    </div>
+                    <button id="btn-toggle-ai-panel" class="p-1.5 hover:bg-[#1e2232] rounded-lg transition-colors text-gray-400 hover:text-white" title="Hide AI Panel">
+                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Tabs navigation -->
+                <div class="flex border-b border-[#2a2e39] bg-[#161b26] text-[11px] select-none font-semibold">
+                    <button id="tab-ai-analyst" class="flex-1 py-3 text-center text-emerald-400 border-b-2 border-emerald-500 transition-all uppercase tracking-wider">
+                        ✨ Market Analyst
+                    </button>
+                    <button id="tab-ai-copilot" class="flex-1 py-3 text-center text-gray-400 hover:text-white border-b-2 border-transparent transition-all uppercase tracking-wider">
+                        ✨ Live Chat
+                    </button>
+                </div>
+
+                <!-- Tab 1 Container: AI Analyst -->
+                <div id="ai-analyst-panel" class="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div class="bg-[#1e2232]/50 border border-emerald-500/10 p-4 rounded-xl space-y-3">
+                        <h4 class="text-xs font-semibold text-white flex items-center gap-1.5">
+                            <i data-lucide="activity" class="w-4 h-4 text-emerald-400"></i>
+                            Real-time AI Market Review
+                        </h4>
+                        <p class="text-[11px] text-gray-400 leading-relaxed">
+                            Analyze chart pattern dynamics, price proximity to the 50MA, support levels, and get strategic trade recommendations.
+                        </p>
+                        <button id="btn-trigger-ai-analysis" class="w-full py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-[#0d0f17] text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/10">
+                            <i data-lucide="brain" class="w-4 h-4"></i>
+                            ✨ Analyze Chart Patterns
+                        </button>
+                    </div>
+
+                    <!-- Analysis Outputs -->
+                    <div id="ai-analysis-output" class="hidden space-y-3">
+                        <div class="border-t border-[#2a2e39] pt-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-[9px] text-gray-500 uppercase tracking-widest font-mono-custom">Gemini Assessment</span>
+                                <span class="text-[9px] bg-[#1e2232] text-emerald-400 px-2 py-0.5 rounded font-mono-custom border border-[#2a2e39]" id="ai-analysis-timestamp">Compiled just now</span>
+                            </div>
+                            <div class="bg-[#161b26]/50 border border-[#2a2e39] p-4 rounded-xl max-h-[380px] overflow-y-auto space-y-3 leading-relaxed" id="ai-analysis-body">
+                                <!-- Dynamic review content gets added here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2 Container: AI Copilot Live Chat -->
+                <div id="ai-copilot-panel" class="hidden flex-1 flex-col min-h-0">
+                    <!-- Messages Log -->
+                    <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3 scroll-smooth">
+                        <div class="bg-[#161b26]/70 border border-[#2a2e39] p-3.5 rounded-xl space-y-1 text-gray-300">
+                            <p class="font-semibold text-emerald-400 flex items-center gap-1 text-[11px]">
+                                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                                ✨ Gemini Copilot
+                            </p>
+                            <p class="leading-relaxed text-gray-300 text-[11px]">
+                                Hello! I am observing your NAS100 backtesting session. Ask me to formulate risk plans, audit your active positioning, or look for upcoming patterns!
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Quick Suggestions -->
+                    <div class="p-2 border-t border-[#2a2e39] flex gap-2 overflow-x-auto whitespace-nowrap bg-[#161b26]/40 select-none">
+                        <button class="quick-prompt-btn px-3 py-1.5 bg-[#1e2232] hover:bg-[#2c314b] text-gray-300 rounded-lg text-[10px] transition-all border border-[#2a2e39]">
+                            ✨ Assess active risk?
+                        </button>
+                        <button class="quick-prompt-btn px-3 py-1.5 bg-[#1e2232] hover:bg-[#2c314b] text-gray-300 rounded-lg text-[10px] transition-all border border-[#2a2e39]">
+                            ✨ Candle structure check?
+                        </button>
+                        <button class="quick-prompt-btn px-3 py-1.5 bg-[#1e2232] hover:bg-[#2c314b] text-gray-300 rounded-lg text-[10px] transition-all border border-[#2a2e39]">
+                            ✨ Next trade suggestion?
+                        </button>
+                    </div>
+
+                    <!-- Message inputs -->
+                    <div class="p-3 border-t border-[#2a2e39] flex gap-2 bg-[#131722]">
+                        <input type="text" id="ai-chat-input" placeholder="Type message or click suggestions..." class="flex-1 px-3 py-2.5 bg-[#161b26] border border-[#2a2e39] rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500 transition-all font-mono-custom">
+                        <button id="btn-send-chat" class="p-2.5 bg-emerald-500 hover:bg-emerald-400 text-[#0d0f17] rounded-lg transition-all flex items-center justify-center">
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Collapsed Sidebar floating handle -->
+            <button id="ai-panel-handle" class="hidden absolute top-1/2 -translate-y-1/2 right-0 z-20 bg-emerald-500 hover:bg-emerald-400 text-[#0d0f17] p-2.5 rounded-l-xl shadow-lg border border-emerald-400/20 flex flex-col items-center gap-2 transition-all duration-200" title="Open AI Copilot panel">
+                <i data-lucide="sparkles" class="w-4 h-4 animate-pulse"></i>
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <!-- Dashboard Control Bar / Trade Terminal Controls -->
+        <div class="bg-[#131722] border-t border-[#2a2e39] p-4 flex flex-wrap gap-4 items-center justify-between">
+            <!-- Bottom Left Navigation/Exit -->
+            <div class="flex items-center gap-3">
+                <button id="btn-end-game" class="px-5 py-3 bg-red-600/10 hover:bg-red-600 border border-red-500/20 text-red-400 hover:text-white rounded-xl text-sm font-semibold transition-all flex items-center gap-2">
+                    <i data-lucide="stop-circle" class="w-4 h-4"></i>
+                    End Simulation
+                </button>
+                <div class="text-xs text-gray-500 font-mono-custom hidden sm:block">
+                    Max Visible Window: 250 Candlesticks
+                </div>
+            </div>
+
+            <!-- Playback controls -->
+            <div class="flex items-center gap-2 bg-[#1c2030] p-1.5 border border-[#2a2e39] rounded-xl shadow-inner">
+                <!-- Interval Toggles -->
+                <div class="flex bg-[#121520] rounded-lg p-0.5 border border-[#2a2e39]/50">
+                    <button class="interval-tab px-3 py-1 text-xs font-semibold rounded-md transition-all text-white bg-[#222639]" data-interval="1m">1m</button>
+                    <button class="interval-tab px-3 py-1 text-xs font-semibold rounded-md transition-all text-gray-400 hover:text-white" data-interval="5m">5m</button>
+                    <button class="interval-tab px-3 py-1 text-xs font-semibold rounded-md transition-all text-gray-400 hover:text-white" data-interval="15m">15m</button>
+                    <button class="interval-tab px-3 py-1 text-xs font-semibold rounded-md transition-all text-gray-400 hover:text-white" data-interval="1H">1h</button>
+                </div>
+
+                <button id="btn-next" class="px-4 py-2 bg-[#31364e] hover:bg-[#3d4463] text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow">
+                    <span>Next Bar</span>
+                    <i data-lucide="chevrons-right" class="w-3.5 h-3.5"></i>
+                </button>
+
+                <button id="btn-autoplay" class="p-2 bg-emerald-500 hover:bg-emerald-400 text-[#0d0f17] rounded-lg transition-all flex items-center justify-center">
+                    <i data-lucide="play" class="w-4 h-4 fill-current" id="autoplay-icon"></i>
+                </button>
+                
+                <select id="select-speed" class="bg-[#121520] border border-[#2a2e39] rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none">
+                    <option value="1000">1s / bar</option>
+                    <option value="500">0.5s / bar</option>
+                    <option value="200">0.2s / bar</option>
+                    <option value="100">0.1s / bar</option>
+                </select>
+            </div>
+
+            <!-- Execution Pad (Buy / Sell / Close) -->
+            <div class="flex items-center gap-2">
+                <button id="btn-buy" class="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-400 hover:scale-[1.02] text-[#0d0f17] font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/10 flex items-center gap-2">
+                    <i data-lucide="arrow-up-right" class="w-4 h-4"></i>
+                    Buy Market (Long)
+                </button>
+                <button id="btn-sell" class="px-6 py-3.5 bg-red-500 hover:bg-red-400 hover:scale-[1.02] text-white font-bold rounded-xl transition-all shadow-lg shadow-red-500/10 flex items-center gap-2">
+                    <i data-lucide="arrow-down-right" class="w-4 h-4"></i>
+                    Sell Market (Short)
+                </button>
+                <button id="btn-close" class="px-5 py-3.5 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-xl transition-all">
+                    Close Position
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCOREBOARD VIEW (Hidden by default) -->
+    <div id="scoreboard-page" class="hidden absolute inset-0 flex items-center justify-center overflow-y-auto p-4">
+    <div class="w-full max-w-3xl bg-[#131722] border border-[#2a2e39] rounded-2xl shadow-2xl space-y-5 p-7">
+        <div class="text-center space-y-2">
+            <div class="inline-flex p-3 bg-emerald-500/10 text-emerald-400 rounded-full">
+                <i data-lucide="award" class="w-12 h-12"></i>
+            </div>
+            <h1 class="text-3xl font-bold tracking-tight text-white">Performance Scoreboard</h1>
+            <p class="text-gray-400 text-sm">Review detailed analytics of your replay trading session below.</p>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="p-4 bg-[#161b26] border border-[#2a2e39] rounded-xl text-center space-y-1">
+                <span class="text-xs text-gray-500 block uppercase font-medium">Final Balance</span>
+                <span id="score-balance" class="text-lg font-bold font-mono-custom text-white">$100,000.00</span>
+            </div>
+            <div class="p-4 bg-[#161b26] border border-[#2a2e39] rounded-xl text-center space-y-1">
+                <span class="text-xs text-gray-500 block uppercase font-medium">Net Profit / Loss</span>
+                <span id="score-profit" class="text-lg font-bold font-mono-custom text-emerald-400">+$0.00</span>
+            </div>
+            <div class="p-4 bg-[#161b26] border border-[#2a2e39] rounded-xl text-center space-y-1">
+                <span class="text-xs text-gray-500 block uppercase font-medium">Win Rate</span>
+                <span id="score-winrate" class="text-lg font-bold font-mono-custom text-yellow-400">0.0%</span>
+            </div>
+            <div class="p-4 bg-[#161b26] border border-[#2a2e39] rounded-xl text-center space-y-1">
+                <span class="text-xs text-gray-500 block uppercase font-medium">Total Orders</span>
+                <span id="score-trades" class="text-lg font-bold font-mono-custom text-blue-400">0</span>
+            </div>
+        </div>
+
+        <!-- ✨ AI Performance Audit Review Section -->
+        <div id="ai-coach-section" class="bg-[#161b26] border border-[#2a2e39] p-5 rounded-xl space-y-3">
+            <div class="flex items-center justify-between flex-wrap gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-emerald-500/10 rounded-lg">
+                        <i data-lucide="sparkles" class="w-6 h-6 text-emerald-400 animate-pulse"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+                            ✨ AI Performance Coaching Audit
+                        </h3>
+                        <p class="text-[11px] text-gray-400">Request a deep qualitative and psychological evaluation of your trading session decisions.</p>
+                    </div>
+                </div>
+                <button id="btn-request-ai-audit" class="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-[#0d0f17] text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-lg shadow-emerald-500/5">
+                    <i data-lucide="award" class="w-4 h-4"></i>
+                    ✨ Audit My Session Performance
+                </button>
+            </div>
+
+            <!-- Loading indicator -->
+            <div id="ai-coach-loading" class="hidden text-center py-6 space-y-2">
+                <div class="inline-block w-8 h-8 border-4 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin"></div>
+                <p class="text-xs text-gray-400 font-mono-custom animate-pulse">Gemini Quant Specialist auditing your transaction records...</p>
+            </div>
+
+            <!-- Output block -->
+            <div id="ai-coach-output" class="hidden border-t border-[#2a2e39] pt-4 space-y-3">
+                <div class="bg-[#121520] border border-[#2a2e39] p-4 rounded-lg overflow-y-auto max-h-[300px] text-xs leading-relaxed space-y-2 text-gray-300" id="ai-coach-body">
+                    <!-- Dynamic review populated from API -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Trade History list -->
+        <div class="space-y-2">
+            <h2 class="text-sm font-semibold text-gray-400 tracking-wider uppercase">Transaction Log</h2>
+            <div class="max-h-40 overflow-y-auto border border-[#2a2e39] rounded-xl bg-[#0f111a] font-mono-custom text-xs">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-[#161b26] text-gray-400 sticky top-0 border-b border-[#2a2e39]">
+                            <th class="p-3">Time</th>
+                            <th class="p-3">Type</th>
+                            <th class="p-3 text-right">Price</th>
+                            <th class="p-3 text-right">Quantity Change</th>
+                            <th class="p-3 text-right">Result Pos</th>
+                            <th class="p-3 text-right">Realized PnL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="score-trades-body" class="divide-y divide-[#1e2230]">
+                        <!-- Rendered via JS -->
+                        <tr>
+                            <td colspan="6" class="p-4 text-center text-gray-500">No trading activity recorded during this session.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3 pt-4">
+            <button id="btn-download-csv" class="flex-1 py-3 bg-[#1e2232] hover:bg-[#2c314b] border border-[#2a2e39] hover:border-[#3a4164] text-white font-semibold rounded-xl transition duration-200 flex items-center justify-center gap-2">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                Download CSV Trade History
+            </button>
+            <button id="btn-restart" class="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-[#0d0f17] font-bold rounded-xl transition duration-200 flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/5">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                Restart Simulation
+            </button>
+        </div>
+    </div>
+    </div><!-- /scoreboard inner card -->
+    </div><!-- /scoreboard-page -->
+
+    </div><!-- /app-shell -->
+
+    <!-- SCRIPT LOGIC -->
+    <script>
+        // Gemini API Configuration — loaded from config.txt at startup
+        let apiKey = "";
+        
+        // Global simulation variables
+        let rawCandles = []; // Contains original parsed 1m candles
+        let parsedDates = new Set(); // Available starting dates (YYYY-MM-DD strings)
+        let simTimeIndex = 0; // The active 1-minute global pointer index
+        let gameStartIndex = 0; // Index in rawCandles where the player's selected date begins
+        let currentInterval = '1m'; // 1m, 5m, 15m, 1H
+        let isPlaying = false;
+        let playIntervalId = null;
+
+        // Trading Portfolio state
+        let accountBalance = 100000.0; // Standard $100k account
+        let startBalance = 100000.0;
+        let activePosition = 0; // Positive = Long, Negative = Short
+        let avgEntryPrice = 0.0;
+        let realizedProfit = 0.0;
+        let floatingProfit = 0.0;
+        let tradesLog = []; // Stores object logs of all operations
+        let userTradeMarkers = []; // { time, type, price }
+
+        // Pending orders state: { id, type ('LIMIT_BUY'|'STOP_LOSS'), price, placedTime }
+        let pendingOrders = [];
+        let nextOrderId = 1;
+
+        // Chart coordinate mapping (updated each render for click-to-price)
+        let chartLayout = { paddingLeft: 10, paddingRight: 75, paddedMin: 0, paddedMax: 1, width: 0, height: 0 };
+
+        // Canvas UI dimensions
+        const canvas = document.getElementById('chart-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Initial loading state helper
+        window.addEventListener('load', () => {
+            lucide.createIcons();
+            // Create a premium synthetic sample dataset in case user doesn't load a CSV immediately
+            generateSyntheticSampleData();
+            resizeCanvas();
+            drawPlaceholderChart();
+            setupAiPanelListeners();
+
+            // Watch the 16:9 app-shell for size changes and redraw the canvas accordingly
+            const appShell = document.getElementById('app-shell');
+            if (window.ResizeObserver) {
+                new ResizeObserver(() => resizeCanvas()).observe(appShell);
+            } else {
+                // Fallback for older browsers
+                window.addEventListener('resize', resizeCanvas);
+            }
+
+            // Load API key from config.txt and pre-fill the input field
+            loadApiKey();
+        });
+
+        // Toggle API key visibility
+        document.getElementById('btn-toggle-key-vis').addEventListener('click', () => {
+            const inp = document.getElementById('api-key-input');
+            const icon = document.getElementById('key-eye-icon');
+            if (inp.type === 'password') {
+                inp.type = 'text';
+                icon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                inp.type = 'password';
+                icon.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        });
+
+        // ── Load API key from config.txt (pre-fills the start-page input) ────
+        async function loadApiKey() {
+            let text = null;
+
+            // Method 1: fetch (works when served via HTTP)
+            try {
+                const resp = await fetch('config.txt');
+                if (resp.ok) text = await resp.text();
+            } catch (_) { /* fetch fails on file:// — fall through */ }
+
+            // Method 2: XMLHttpRequest fallback (works on file:// in some browsers)
+            if (!text) {
+                try {
+                    text = await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('GET', 'config.txt', true);
+                        xhr.onload = () => (xhr.status === 200 || xhr.status === 0) ? resolve(xhr.responseText) : reject();
+                        xhr.onerror = reject;
+                        xhr.send();
+                    });
+                } catch (_) { /* also failed */ }
+            }
+
+            if (!text) return;
+
+            // Parse "api_key = <value>" format
+            const lines = text.split(/\r?\n/);
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('#')) continue;
+                const match = trimmed.match(/^api_key\s*=\s*(.+)$/i);
+                if (match) {
+                    const key = match[1].trim();
+                    // Pre-fill the start page input field
+                    const inp = document.getElementById('api-key-input');
+                    if (inp) inp.value = key;
+                    console.log('API key pre-filled from config.txt');
+                    return;
+                }
+            }
+        }
+
+        // Resize Canvas dynamically — resets the pixel transform each time to avoid accumulation
+        function resizeCanvas() {
+            const rect = canvas.parentNode.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return; // guard against zero-size containers
+            canvas.width = Math.round(rect.width * window.devicePixelRatio);
+            canvas.height = Math.round(rect.height * window.devicePixelRatio);
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0); // reset + scale
+            if (rawCandles.length > 0) renderReplayChart();
+        }
+
+        // CSV parsing helpers
+        document.getElementById('csv-file-input').addEventListener('change', handleCSVUpload);
+        
+        // Prevent default drag behaviors to handle drag-and-drop cleanly
+        const dropZone = document.getElementById('upload-zone');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('border-emerald-500'), false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('border-emerald-500'), false);
+        });
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                document.getElementById('csv-file-input').files = files;
+                handleCSVUpload({ target: { files: files } });
+            }
+        });
+
+        function handleCSVUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                parseCSV(text, file.name);
+            };
+            reader.readAsText(file);
+        }
+
+        // ── Auto-detecting multi-format CSV parser ──────────────────────────
+        // Supports 3 formats:
+        //   1) Tab-separated: <DATE>\t<TIME>\t<OPEN>\t...  (NAS100_M1_*.csv)
+        //   2) Comma-separated with ts_event column       (MNQ202003*.csv)
+        //   3) Comma-separated with Date column            (MNQ202303*.csv)
+        function parseCSV(text, filename) {
+            try {
+                const lines = text.split(/\r?\n/);
+                if (lines.length < 2) throw new Error("Empty or single-line file.");
+
+                const headerRaw = lines[0];
+                const isTab = headerRaw.includes('\t');
+                const sep = isTab ? '\t' : ',';
+                const headers = headerRaw.split(sep).map(h => h.trim());
+                const headersLower = headers.map(h => h.toLowerCase().replace(/[<>]/g, ''));
+
+                // Detect format
+                let format = 'unknown';
+                if (headersLower.includes('date') && headersLower.includes('time')) format = 'tab_nas100';
+                else if (headersLower.includes('ts_event')) format = 'comma_mnq_v1';
+                else if (headersLower[0] === 'date') format = 'comma_mnq_v2';
+                else throw new Error(`Unrecognised CSV format. Header: ${headerRaw.substring(0, 120)}`);
+
+                // Build column index map
+                const colIdx = {};
+                headersLower.forEach((h, i) => { colIdx[h] = i; });
+
+                const parsedList = [];
+                const tempDates = new Set();
+
+                for (let i = 1; i < lines.length; i++) {
+                    const row = lines[i].trim();
+                    if (!row) continue;
+                    const cols = row.split(sep);
+                    if (cols.length < 4) continue;
+
+                    let timeVal, dateStr, timeStr;
+
+                    if (format === 'tab_nas100') {
+                        // <DATE> = 2026.03.16, <TIME> = 01:14:00
+                        dateStr = cols[colIdx['date']].replace(/\./g, '-').trim();
+                        timeStr = cols[colIdx['time']].trim();
+                        timeVal = new Date(`${dateStr}T${timeStr}`).getTime();
+                    } else if (format === 'comma_mnq_v1') {
+                        // ts_event = "2020-03-20 00:00:00-05:00"
+                        const raw = cols[colIdx['ts_event']].trim();
+                        const dt = new Date(raw);
+                        timeVal = dt.getTime();
+                        dateStr = dt.toISOString().substring(0, 10);
+                        timeStr = dt.toISOString().substring(11, 19);
+                    } else { // comma_mnq_v2
+                        // Date = "2023-03-01 00:00:00+00:00"
+                        const raw = cols[colIdx['date']].trim();
+                        const dt = new Date(raw);
+                        timeVal = dt.getTime();
+                        dateStr = dt.toISOString().substring(0, 10);
+                        timeStr = dt.toISOString().substring(11, 19);
+                    }
+
+                    if (isNaN(timeVal)) continue;
+
+                    const open  = parseFloat(cols[colIdx['open']]);
+                    const high  = parseFloat(cols[colIdx['high']]);
+                    const low   = parseFloat(cols[colIdx['low']]);
+                    const close = parseFloat(cols[colIdx['close']]);
+
+                    if (isNaN(open) || isNaN(close)) continue;
+
+                    parsedList.push({
+                        time: timeVal,
+                        dateStr: dateStr,
+                        timeStr: timeStr,
+                        open: open,
+                        high: isNaN(high) ? Math.max(open, close) : high,
+                        low: isNaN(low) ? Math.min(open, close) : low,
+                        close: close
+                    });
+
+                    tempDates.add(dateStr);
+                }
+
+                if (parsedList.length === 0) throw new Error("No valid data rows successfully converted.");
+
+                // Sort ascending chronologically and deduplicate
+                parsedList.sort((a, b) => a.time - b.time);
+
+                rawCandles = parsedList;
+                parsedDates = tempDates;
+
+                // Adjust UI
+                document.getElementById('upload-prompt').classList.add('hidden');
+                document.getElementById('upload-success').classList.remove('hidden');
+                document.getElementById('uploaded-filename').innerText = filename;
+                document.getElementById('uploaded-meta').innerText = `${rawCandles.length.toLocaleString()} sequential 1-minute bars loaded`;
+
+                // Set default starting date input range
+                const datesArr = Array.from(parsedDates).sort();
+                const minDate = datesArr[0];
+                const maxDate = datesArr[datesArr.length - 1];
+                
+                document.getElementById('start-date-input').value = minDate;
+                document.getElementById('date-range-hint').innerText = `Valid ranges found in your uploaded file: ${minDate} to ${maxDate}`;
+                document.getElementById('date-warning').classList.add('hidden');
+
+            } catch(err) {
+                alert("Parsing Error: " + err.message);
+                document.getElementById('upload-prompt').classList.remove('hidden');
+                document.getElementById('upload-success').classList.add('hidden');
+            }
+        }
+
+        // Quick fallback Synthetic Generator to test simulator immediately
+        function generateSyntheticSampleData() {
+            const parsedList = [];
+            const startDate = new Date('2026-03-16T01:14:00');
+            let currentPrice = 24303.9;
+            const tempDates = new Set();
+
+            // Generate roughly 2 days of continuous trading bars
+            for (let i = 0; i < 3000; i++) {
+                const candleTime = new Date(startDate.getTime() + i * 60 * 1000);
+                const dateYMD = candleTime.toISOString().split('T')[0];
+                const timeHMS = candleTime.toTimeString().split(' ')[0];
+
+                const change = (Math.random() - 0.495) * 12.0; // Slight upward drift
+                const open = currentPrice;
+                const close = currentPrice + change;
+                const high = Math.max(open, close) + Math.random() * 6.0;
+                const low = Math.min(open, close) - Math.random() * 6.0;
+                currentPrice = close;
+
+                parsedList.push({
+                    time: candleTime.getTime(),
+                    dateStr: dateYMD,
+                    timeStr: timeHMS,
+                    open: Math.round(open * 100) / 100,
+                    high: Math.round(high * 100) / 100,
+                    low: Math.round(low * 100) / 100,
+                    close: Math.round(close * 100) / 100
+                });
+
+                tempDates.add(dateYMD);
+            }
+
+            rawCandles = parsedList;
+            parsedDates = tempDates;
+            
+            const datesArr = Array.from(parsedDates).sort();
+            document.getElementById('date-range-hint').innerText = `Sample synthetic loaded. Range: ${datesArr[0]} to ${datesArr[datesArr.length - 1]}`;
+        }
+
+        document.getElementById('btn-use-synthetic').addEventListener('click', (e) => {
+            e.preventDefault();
+            generateSyntheticSampleData();
+            alert("Synthetic NAS100 sample data set has been populated!");
+        });
+
+        // Launch Simulation Event Handler
+        document.getElementById('btn-start-game').addEventListener('click', () => {
+            const requestedDateStr = document.getElementById('start-date-input').value;
+            if (!requestedDateStr) {
+                showWarning();
+                return;
+            }
+
+            // Find the first 1m bar on the selected date
+            let startIdx = rawCandles.findIndex(c => c.dateStr === requestedDateStr);
+            if (startIdx === -1) {
+                // Fuzzy: find closest next available date
+                startIdx = rawCandles.findIndex(c => c.dateStr >= requestedDateStr);
+                if (startIdx === -1) {
+                    showWarning();
+                    return;
+                }
+            }
+
+            // Record where the player's "live" session begins
+            gameStartIndex = startIdx;
+
+            // Wind the pointer back 250 bars so the player sees 250 candles of context
+            // before the selected date. If fewer bars are available, use what exists.
+            const HISTORY_BARS = 250;
+            simTimeIndex = Math.max(0, startIdx - HISTORY_BARS);
+
+            // Reset Account State
+            accountBalance = startBalance;
+            activePosition = 0;
+            avgEntryPrice = 0.0;
+            realizedProfit = 0.0;
+            floatingProfit = 0.0;
+            tradesLog = [];
+            userTradeMarkers = [];
+
+            // ── API Key: read from the input field ────────────────────────
+            const keyInput = document.getElementById('api-key-input').value.trim();
+            apiKey = keyInput;
+
+            const hasAI = apiKey.length > 0;
+            // Show or hide AI elements based on whether a key was provided
+            const aiPanel = document.getElementById('ai-panel');
+            const aiHandle = document.getElementById('ai-panel-handle');
+            const aiCoachSection = document.getElementById('ai-coach-section');
+
+            if (hasAI) {
+                // AI enabled — show the panel normally
+                aiPanel.classList.remove('hidden');
+                aiHandle.classList.add('hidden');
+            } else {
+                // No AI — hide panel + handle permanently for this session
+                aiPanel.classList.add('hidden');
+                aiPanel.style.display = 'none';
+                aiHandle.classList.add('hidden');
+                aiHandle.style.display = 'none';
+                if (aiCoachSection) aiCoachSection.style.display = 'none';
+            }
+
+            // Shift Screen Views
+            document.getElementById('start-page').classList.add('hidden');
+            document.getElementById('scoreboard-page').classList.add('hidden');
+            document.getElementById('game-workspace').classList.remove('hidden');
+
+            updateHUD();
+            resizeCanvas();
+            renderReplayChart();
+        });
+
+        function showWarning() {
+            document.getElementById('date-warning').classList.remove('hidden');
+        }
+
+        // Multi-Timeframe Snapping Boundary Engine
+        function setTimeframe(tf) {
+            currentInterval = tf;
+            document.getElementById('hud-timeframe').innerText = tf === '1m' ? '1 Min' : tf === '5m' ? '5 Min' : tf === '15m' ? '15 Min' : '1 Hour';
+            
+            // Re-apply boundary snapping rule to current time
+            const activeTime = rawCandles[simTimeIndex].time;
+            let stepMs = 1 * 60 * 1000;
+            if (tf === '5m') stepMs = 5 * 60 * 1000;
+            else if (tf === '15m') stepMs = 15 * 60 * 1000;
+            else if (tf === '1H') stepMs = 60 * 60 * 1000;
+
+            const snappedTime = Math.floor(activeTime / stepMs) * stepMs;
+            
+            // Adjust pointer index to match nearest index matching or prior to this timestamp
+            let targetIdx = rawCandles.findIndex(c => c.time >= snappedTime);
+            if (targetIdx !== -1) {
+                simTimeIndex = targetIdx;
+            }
+            
+            updateHUD();
+            renderReplayChart();
+        }
+
+        // Assign UI Listeners for Timeframes
+        document.querySelectorAll('.interval-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                document.querySelectorAll('.interval-tab').forEach(btn => {
+                    btn.classList.remove('bg-[#222639]', 'text-white');
+                    btn.classList.add('text-gray-400');
+                });
+                tab.classList.add('bg-[#222639]', 'text-white');
+                tab.classList.remove('text-gray-400');
+                
+                setTimeframe(tab.getAttribute('data-interval'));
+            });
+        });
+
+        // "Next Candle" Simulation Advance
+        document.getElementById('btn-next').addEventListener('click', () => {
+            advanceTimeline();
+        });
+
+        function advanceTimeline() {
+            let steps = 1;
+            if (currentInterval === '5m') steps = 5;
+            else if (currentInterval === '15m') steps = 15;
+            else if (currentInterval === '1H') steps = 60;
+
+            simTimeIndex += steps;
+            if (simTimeIndex >= rawCandles.length) {
+                simTimeIndex = rawCandles.length - 1;
+                toggleAutoplay(false);
+                alert("Reached end of available database timeline! Terminating simulation run.");
+            }
+
+            // If we just crossed into the live session, flash a notification once
+            if (simTimeIndex >= gameStartIndex && simTimeIndex - steps < gameStartIndex) {
+                const banner = document.getElementById('live-session-banner');
+                if (banner) {
+                    banner.classList.remove('hidden');
+                    setTimeout(() => banner.classList.add('hidden'), 3000);
+                }
+            }
+
+            // Check pending orders against ALL 1m bars that were just advanced through
+            checkPendingOrders(simTimeIndex - steps, simTimeIndex);
+
+            updateHUD();
+            renderReplayChart();
+        }
+
+        // ── Pending Order Trigger Engine ──────────────────────────────────
+        function checkPendingOrders(fromIdx, toIdx) {
+            if (pendingOrders.length === 0) return;
+            if (simTimeIndex < gameStartIndex) return;
+
+            const filledIds = [];
+
+            for (let idx = Math.max(fromIdx + 1, 0); idx <= Math.min(toIdx, rawCandles.length - 1); idx++) {
+                const bar = rawCandles[idx];
+                pendingOrders.forEach(order => {
+                    if (filledIds.includes(order.id)) return; // already filled this tick
+
+                    if (order.type === 'LIMIT_BUY') {
+                        // Triggers when price drops to or below the limit price
+                        if (bar.low <= order.price) {
+                            // Execute buy at limit price
+                            const fillPrice = order.price;
+                            if (activePosition >= 0) {
+                                const oldCost = activePosition * avgEntryPrice;
+                                activePosition += 1;
+                                avgEntryPrice = (oldCost + fillPrice) / activePosition;
+                            } else {
+                                const tradePnL = avgEntryPrice - fillPrice;
+                                realizedProfit += tradePnL;
+                                accountBalance += tradePnL;
+                                activePosition += 1;
+                                if (activePosition === 0) avgEntryPrice = 0.0;
+                            }
+                            userTradeMarkers.push({ time: bar.time, type: 'LIMIT_BUY', price: fillPrice });
+                            logTransaction(bar.time, 'LIMIT_BUY', fillPrice, 1, activePosition, activePosition < 0 ? (avgEntryPrice - fillPrice) : 0);
+                            filledIds.push(order.id);
+                        }
+                    } else if (order.type === 'STOP_LOSS') {
+                        // Triggers when price drops to or below the stop price (closes position)
+                        if (bar.low <= order.price && activePosition > 0) {
+                            // Close long position at stop price
+                            const fillPrice = order.price;
+                            const tradePnL = activePosition * (fillPrice - avgEntryPrice);
+                            realizedProfit += tradePnL;
+                            accountBalance += tradePnL;
+                            userTradeMarkers.push({ time: bar.time, type: 'STOP_LOSS', price: fillPrice });
+                            logTransaction(bar.time, 'STOP_LOSS', fillPrice, -activePosition, 0, tradePnL);
+                            activePosition = 0;
+                            avgEntryPrice = 0.0;
+                            filledIds.push(order.id);
+                        } else if (bar.high >= order.price && activePosition < 0) {
+                            // Close short position at stop price
+                            const fillPrice = order.price;
+                            const tradePnL = Math.abs(activePosition) * (avgEntryPrice - fillPrice);
+                            realizedProfit += tradePnL;
+                            accountBalance += tradePnL;
+                            userTradeMarkers.push({ time: bar.time, type: 'STOP_LOSS', price: fillPrice });
+                            logTransaction(bar.time, 'STOP_LOSS', fillPrice, Math.abs(activePosition), 0, tradePnL);
+                            activePosition = 0;
+                            avgEntryPrice = 0.0;
+                            filledIds.push(order.id);
+                        }
+                    }
+                });
+            }
+
+            // Remove filled orders
+            if (filledIds.length > 0) {
+                pendingOrders = pendingOrders.filter(o => !filledIds.includes(o.id));
+                updatePendingOrdersUI();
+            }
+        }
+
+        // Dynamic Aggregator to 1m, 5m, 15m, 1H
+        function getAggregatedCandles() {
+            const cutOffTime = rawCandles[simTimeIndex].time;
+            const visibleBase = rawCandles.slice(0, simTimeIndex + 1);
+
+            let intervalSize = 1;
+            if (currentInterval === '5m') intervalSize = 5;
+            else if (currentInterval === '15m') intervalSize = 15;
+            else if (currentInterval === '1H') intervalSize = 60;
+
+            if (intervalSize === 1) {
+                return visibleBase.slice(-250); // Direct 1m optimization
+            }
+
+            const intervalMs = intervalSize * 60 * 1000;
+            const aggregated = [];
+            let currentGroup = null;
+
+            for (let i = 0; i < visibleBase.length; i++) {
+                const b = visibleBase[i];
+                const intervalStart = Math.floor(b.time / intervalMs) * intervalMs;
+
+                if (!currentGroup || currentGroup.time !== intervalStart) {
+                    if (currentGroup) {
+                        aggregated.push(currentGroup);
+                    }
+                    currentGroup = {
+                        time: intervalStart,
+                        open: b.open,
+                        high: b.high,
+                        low: b.low,
+                        close: b.close
+                    };
+                } else {
+                    currentGroup.high = Math.max(currentGroup.high, b.high);
+                    currentGroup.low = Math.min(currentGroup.low, b.low);
+                    currentGroup.close = b.close; // Latest updates close
+                }
+            }
+            if (currentGroup) {
+                aggregated.push(currentGroup);
+            }
+
+            return aggregated.slice(-250);
+        }
+
+        // Draw dynamic overlay of 50MA & Canvas Grid
+        function renderReplayChart() {
+            if (rawCandles.length === 0) return;
+
+            const displayCandles = getAggregatedCandles();
+            if (displayCandles.length === 0) return;
+
+            // Compute 50 MA across aggregated series
+            for (let i = 0; i < displayCandles.length; i++) {
+                if (i >= 49) {
+                    let sum = 0;
+                    for (let j = i - 49; j <= i; j++) {
+                        sum += displayCandles[j].close;
+                    }
+                    displayCandles[i].ma50 = sum / 50;
+                } else {
+                    displayCandles[i].ma50 = null;
+                }
+            }
+
+            // Determine the timestamp at which the live session begins
+            const gameStartTime = rawCandles[gameStartIndex] ? rawCandles[gameStartIndex].time : null;
+
+            // Draw Setup
+            const width = canvas.width / window.devicePixelRatio;
+            const height = canvas.height / window.devicePixelRatio;
+            ctx.clearRect(0, 0, width, height);
+
+            // Back Color
+            ctx.fillStyle = "#131722";
+            ctx.fillRect(0, 0, width, height);
+
+            // Min-Max Price Bounds for visible viewport matching
+            let minPrice = Infinity;
+            let maxPrice = -Infinity;
+            displayCandles.forEach(c => {
+                if (c.low < minPrice) minPrice = c.low;
+                if (c.high > maxPrice) maxPrice = c.high;
+                if (c.ma50 && c.ma50 < minPrice) minPrice = c.ma50;
+                if (c.ma50 && c.ma50 > maxPrice) maxPrice = c.ma50;
+            });
+
+            // Set visual vertical padding
+            const priceRange = maxPrice - minPrice;
+            const padRatio = 0.08;
+            const paddedMin = minPrice - priceRange * padRatio;
+            const paddedMax = maxPrice + priceRange * padRatio;
+            const paddedRange = paddedMax - paddedMin;
+
+            // X coordinates layout
+            const paddingRight = 75;
+            const paddingLeft = 10;
+            const plotWidth = width - paddingRight - paddingLeft;
+            const candleCount = Math.max(250, displayCandles.length); // Space out like 250 grid
+            const candleWidth = plotWidth / candleCount;
+            const bodySpacing = candleWidth * 0.2;
+
+            // Shade the historical (pre-game-start) background region
+            if (gameStartTime !== null) {
+                const startBoundaryIdx = displayCandles.findIndex(c => c.time >= gameStartTime);
+                if (startBoundaryIdx > 0) {
+                    const boundaryX = paddingLeft + startBoundaryIdx * candleWidth;
+                    ctx.fillStyle = 'rgba(10,12,22,0.45)';
+                    ctx.fillRect(paddingLeft, 30, boundaryX - paddingLeft, height - 60);
+                }
+            }
+
+            // Grid Lines Rendering
+            ctx.strokeStyle = "#1f222e";
+            ctx.lineWidth = 1;
+
+            // Horizontal Grid Lines
+            const gridRows = 8;
+            for (let i = 0; i <= gridRows; i++) {
+                const y = 30 + (height - 60) * (i / gridRows);
+                ctx.beginPath();
+                ctx.moveTo(paddingLeft, y);
+                ctx.lineTo(width - paddingRight, y);
+                ctx.stroke();
+
+                // Draw price axis tags on right gutter
+                const priceLabel = paddedMax - (paddedRange * (y - 30) / (height - 60));
+                ctx.fillStyle = "#8a91a5";
+                ctx.font = "10px 'JetBrains Mono'";
+                ctx.textAlign = "left";
+                ctx.fillText(priceLabel.toFixed(1), width - paddingRight + 8, y + 3);
+            }
+
+            // Draw Candlesticks & 50 MA paths
+            ctx.lineWidth = 1.5;
+            const maPoints = [];
+            let startBoundaryX = null; // x pixel of the game-start vertical line
+
+            displayCandles.forEach((c, index) => {
+                const x = paddingLeft + (index * candleWidth) + candleWidth / 2;
+
+                // Determine if this candle is in the pre-game history zone
+                const isHistory = gameStartTime !== null && c.time < gameStartTime;
+
+                // Canvas Y coordinates conversion
+                const yOpen = height - 40 - ((c.open - paddedMin) / paddedRange) * (height - 80);
+                const yClose = height - 40 - ((c.close - paddedMin) / paddedRange) * (height - 80);
+                const yHigh = height - 40 - ((c.high - paddedMin) / paddedRange) * (height - 80);
+                const yLow = height - 40 - ((c.low - paddedMin) / paddedRange) * (height - 80);
+
+                const isGreen = c.close >= c.open;
+
+                // History candles render dimmer / desaturated
+                let wickColor, bodyColor;
+                if (isHistory) {
+                    wickColor = isGreen ? 'rgba(38,166,154,0.35)' : 'rgba(239,83,80,0.35)';
+                    bodyColor = isGreen ? 'rgba(38,166,154,0.25)' : 'rgba(239,83,80,0.25)';
+                } else {
+                    wickColor = isGreen ? '#26a69a' : '#ef5350';
+                    bodyColor = isGreen ? '#26a69a' : '#ef5350';
+                }
+
+                // Track where the game-start vertical line should go
+                if (gameStartTime !== null && !isHistory && startBoundaryX === null) {
+                    startBoundaryX = paddingLeft + index * candleWidth;
+                }
+
+                ctx.strokeStyle = wickColor;
+                ctx.fillStyle = bodyColor;
+
+                // Wick Line
+                ctx.beginPath();
+                ctx.moveTo(x, yHigh);
+                ctx.lineTo(x, yLow);
+                ctx.stroke();
+
+                // Solid body rect
+                const bodyY = Math.min(yOpen, yClose);
+                const bodyH = Math.max(Math.abs(yOpen - yClose), 1.5);
+                ctx.fillRect(x - (candleWidth - bodySpacing)/2, bodyY, candleWidth - bodySpacing, bodyH);
+
+                // Check and collect MA points (only for live candles)
+                if (c.ma50 && !isHistory) {
+                    const yMA = height - 40 - ((c.ma50 - paddedMin) / paddedRange) * (height - 80);
+                    maPoints.push({x, y: yMA});
+                }
+
+                // Render BUY, SELL, CLOSE, LIMIT_BUY, STOP_LOSS executions
+                let nextCandleTime = c.time + (60 * 1000 * (currentInterval === '1m' ? 1 : currentInterval === '5m' ? 5 : currentInterval === '15m' ? 15 : 60));
+                
+                userTradeMarkers.forEach(mark => {
+                    if (mark.time >= c.time && mark.time < nextCandleTime) {
+                        if (mark.type === 'BUY' || mark.type === 'LIMIT_BUY') {
+                            // Render green up pointing triangle below the low wick
+                            ctx.fillStyle = mark.type === 'LIMIT_BUY' ? '#22d3ee' : '#26a69a'; // cyan for limit
+                            ctx.beginPath();
+                            ctx.moveTo(x, yLow + 8);
+                            ctx.lineTo(x - 5, yLow + 18);
+                            ctx.lineTo(x + 5, yLow + 18);
+                            ctx.closePath();
+                            ctx.fill();
+                            ctx.font = "bold 9px sans-serif";
+                            ctx.textAlign = "center";
+                            ctx.fillStyle = "#ffffff";
+                            ctx.fillText(mark.type === 'LIMIT_BUY' ? 'LB' : 'B', x, yLow + 28);
+                        } else if (mark.type === 'SELL') {
+                            // Render red down pointing triangle above high wick
+                            ctx.fillStyle = "#ef5350";
+                            ctx.beginPath();
+                            ctx.moveTo(x, yHigh - 8);
+                            ctx.lineTo(x - 5, yHigh - 18);
+                            ctx.lineTo(x + 5, yHigh - 18);
+                            ctx.closePath();
+                            ctx.fill();
+                            ctx.font = "bold 9px sans-serif";
+                            ctx.textAlign = "center";
+                            ctx.fillStyle = "#ffffff";
+                            ctx.fillText("S", x, yHigh - 28);
+                        } else if (mark.type === 'CLOSE') {
+                            // Render white X marker at close price
+                            const yMark = height - 40 - ((mark.price - paddedMin) / paddedRange) * (height - 80);
+                            ctx.strokeStyle = '#ffffff';
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            ctx.moveTo(x - 5, yMark - 5);
+                            ctx.lineTo(x + 5, yMark + 5);
+                            ctx.moveTo(x + 5, yMark - 5);
+                            ctx.lineTo(x - 5, yMark + 5);
+                            ctx.stroke();
+                            ctx.font = "bold 8px sans-serif";
+                            ctx.textAlign = "center";
+                            ctx.fillStyle = '#aaaaaa';
+                            ctx.fillText('X', x, yMark + 16);
+                            ctx.lineWidth = 1.5;
+                        } else if (mark.type === 'STOP_LOSS') {
+                            // Render orange diamond at stop price
+                            const yMark = height - 40 - ((mark.price - paddedMin) / paddedRange) * (height - 80);
+                            ctx.fillStyle = '#f97316';
+                            ctx.beginPath();
+                            ctx.moveTo(x, yMark - 6);
+                            ctx.lineTo(x + 6, yMark);
+                            ctx.lineTo(x, yMark + 6);
+                            ctx.lineTo(x - 6, yMark);
+                            ctx.closePath();
+                            ctx.fill();
+                            ctx.font = "bold 8px sans-serif";
+                            ctx.textAlign = "center";
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillText('SL', x, yMark + 16);
+                        }
+                    }
+                });
+            });
+
+            // Render 50 MA Line (live region only)
+            if (maPoints.length > 1) {
+                ctx.strokeStyle = "#f2994a";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(maPoints[0].x, maPoints[0].y);
+                for (let k = 1; k < maPoints.length; k++) {
+                    ctx.lineTo(maPoints[k].x, maPoints[k].y);
+                }
+                ctx.stroke();
+            }
+
+            // Draw the vertical "▶ SESSION START" line at the boundary
+            if (startBoundaryX !== null) {
+                // Dashed vertical divider
+                ctx.save();
+                ctx.strokeStyle = 'rgba(250,204,21,0.75)'; // yellow-400
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([5, 4]);
+                ctx.beginPath();
+                ctx.moveTo(startBoundaryX, 30);
+                ctx.lineTo(startBoundaryX, height - 30);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Label badge above the line
+                const labelText = '▶ SESSION START';
+                ctx.font = 'bold 9px JetBrains Mono, monospace';
+                const labelW = ctx.measureText(labelText).width + 10;
+                const labelX = startBoundaryX + 4;
+                const labelY = 32;
+                ctx.fillStyle = 'rgba(250,204,21,0.15)';
+                ctx.fillRect(labelX - 2, labelY - 1, labelW, 14);
+                ctx.fillStyle = 'rgba(250,204,21,0.9)';
+                ctx.textAlign = 'left';
+                ctx.fillText(labelText, labelX + 3, labelY + 10);
+                ctx.restore();
+            }
+
+            // ── Draw pending order horizontal lines ────────────────────────
+            pendingOrders.forEach(order => {
+                const yOrder = height - 40 - ((order.price - paddedMin) / paddedRange) * (height - 80);
+                if (yOrder < 30 || yOrder > height - 30) return; // off-screen
+
+                ctx.save();
+                const isLimitBuy = order.type === 'LIMIT_BUY';
+                ctx.strokeStyle = isLimitBuy ? 'rgba(34,211,238,0.7)' : 'rgba(249,115,22,0.7)'; // cyan / orange
+                ctx.lineWidth = 1;
+                ctx.setLineDash([6, 3]);
+                ctx.beginPath();
+                ctx.moveTo(paddingLeft, yOrder);
+                ctx.lineTo(width - paddingRight, yOrder);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Price label on the right axis
+                const label = (isLimitBuy ? 'LB ' : 'SL ') + order.price.toFixed(1);
+                ctx.font = 'bold 9px JetBrains Mono, monospace';
+                ctx.textAlign = 'left';
+                const tw = ctx.measureText(label).width + 8;
+                ctx.fillStyle = isLimitBuy ? 'rgba(34,211,238,0.15)' : 'rgba(249,115,22,0.15)';
+                ctx.fillRect(width - paddingRight + 2, yOrder - 7, tw, 14);
+                ctx.fillStyle = isLimitBuy ? '#22d3ee' : '#f97316';
+                ctx.fillText(label, width - paddingRight + 6, yOrder + 3);
+                ctx.restore();
+            });
+
+            // ── Store chart coordinate mapping for click-to-price ────────
+            chartLayout = { paddingLeft, paddingRight, paddedMin, paddedMax: paddedMax, paddedRange, width, height };
+
+            // Render dynamic Top Left details
+            const lastCandle = displayCandles[displayCandles.length - 1];
+            if (lastCandle) {
+                document.getElementById('ohlc-open').innerText = lastCandle.open.toFixed(1);
+                document.getElementById('ohlc-high').innerText = lastCandle.high.toFixed(1);
+                document.getElementById('ohlc-low').innerText = lastCandle.low.toFixed(1);
+                document.getElementById('ohlc-close').innerText = lastCandle.close.toFixed(1);
+                document.getElementById('hud-ma').innerText = lastCandle.ma50 ? lastCandle.ma50.toFixed(1) : "Calculating...";
+            }
+        }
+
+        // AutoPlay Functionality
+        const autoplayBtn = document.getElementById('btn-autoplay');
+        const autoplayIcon = document.getElementById('autoplay-icon');
+        const speedSelect = document.getElementById('select-speed');
+
+        autoplayBtn.addEventListener('click', () => {
+            toggleAutoplay(!isPlaying);
+        });
+
+        speedSelect.addEventListener('change', () => {
+            if (isPlaying) {
+                // Restart with new interval
+                toggleAutoplay(false);
+                toggleAutoplay(true);
+            }
+        });
+
+        function toggleAutoplay(playState) {
+            isPlaying = playState;
+            if (isPlaying) {
+                autoplayBtn.classList.remove('bg-emerald-500', 'hover:bg-emerald-400');
+                autoplayBtn.classList.add('bg-red-500', 'hover:bg-red-400', 'text-white');
+                autoplayIcon.setAttribute('data-lucide', 'pause');
+                const speed = parseInt(speedSelect.value);
+                playIntervalId = setInterval(() => {
+                    advanceTimeline();
+                }, speed);
+            } else {
+                autoplayBtn.classList.remove('bg-red-500', 'hover:bg-red-400', 'text-white');
+                autoplayBtn.classList.add('bg-emerald-500', 'hover:bg-emerald-400');
+                autoplayIcon.setAttribute('data-lucide', 'play');
+                clearInterval(playIntervalId);
+                playIntervalId = null;
+            }
+            lucide.createIcons();
+        }
+
+        // TRADING EXECUTION STATE ENGINE (BUY / SELL / CLOSE)
+        const buyBtn = document.getElementById('btn-buy');
+        const sellBtn = document.getElementById('btn-sell');
+        const closeBtn = document.getElementById('btn-close');
+
+        buyBtn.addEventListener('click', () => {
+            if (simTimeIndex < gameStartIndex) {
+                showHistoryTradeWarning();
+                return;
+            }
+            executeTrade('BUY');
+        });
+
+        sellBtn.addEventListener('click', () => {
+            if (simTimeIndex < gameStartIndex) {
+                showHistoryTradeWarning();
+                return;
+            }
+            executeTrade('SELL');
+        });
+
+        closeBtn.addEventListener('click', () => {
+            if (simTimeIndex < gameStartIndex) {
+                showHistoryTradeWarning();
+                return;
+            }
+            executeTrade('CLOSE');
+        });
+
+        function showHistoryTradeWarning() {
+            const banner = document.getElementById('history-trade-warning');
+            if (banner) {
+                banner.classList.remove('hidden');
+                setTimeout(() => banner.classList.add('hidden'), 2500);
+            }
+        }
+
+        function executeTrade(action) {
+            const currentClose = rawCandles[simTimeIndex].close;
+            const currentTime = rawCandles[simTimeIndex].time;
+
+            if (action === 'BUY') {
+                if (activePosition >= 0) {
+                    // Accumulating Longs
+                    const oldCost = activePosition * avgEntryPrice;
+                    activePosition += 1;
+                    avgEntryPrice = (oldCost + currentClose) / activePosition;
+                } else {
+                    // Partially covering short inventory positions
+                    const tradePnL = avgEntryPrice - currentClose;
+                    realizedProfit += tradePnL;
+                    accountBalance += tradePnL;
+                    activePosition += 1;
+                    if (activePosition === 0) avgEntryPrice = 0.0;
+                }
+                userTradeMarkers.push({ time: currentTime, type: 'BUY', price: currentClose });
+                logTransaction(currentTime, "BUY", currentClose, 1, activePosition, activePosition < 0 ? (avgEntryPrice - currentClose) : 0);
+            } 
+            else if (action === 'SELL') {
+                if (activePosition <= 0) {
+                    // Accumulating Shorts (Negative positions represent Shorts)
+                    const oldCost = Math.abs(activePosition) * avgEntryPrice;
+                    activePosition -= 1;
+                    avgEntryPrice = (oldCost + currentClose) / Math.abs(activePosition);
+                } else {
+                    // Reducing long inventory positions
+                    const tradePnL = currentClose - avgEntryPrice;
+                    realizedProfit += tradePnL;
+                    accountBalance += tradePnL;
+                    activePosition -= 1;
+                    if (activePosition === 0) avgEntryPrice = 0.0;
+                }
+                userTradeMarkers.push({ time: currentTime, type: 'SELL', price: currentClose });
+                logTransaction(currentTime, "SELL", currentClose, -1, activePosition, activePosition > 0 ? (currentClose - avgEntryPrice) : 0);
+            } 
+            else if (action === 'CLOSE') {
+                if (activePosition === 0) return;
+
+                let tradePnL = 0;
+                if (activePosition > 0) {
+                    tradePnL = activePosition * (currentClose - avgEntryPrice);
+                } else {
+                    tradePnL = Math.abs(activePosition) * (avgEntryPrice - currentClose);
+                }
+
+                realizedProfit += tradePnL;
+                accountBalance += tradePnL;
+
+                // Add CLOSE marker arrow to chart
+                userTradeMarkers.push({ time: currentTime, type: 'CLOSE', price: currentClose });
+                
+                logTransaction(currentTime, `CLOSE_ALL`, currentClose, -activePosition, 0, tradePnL);
+                
+                activePosition = 0;
+                avgEntryPrice = 0.0;
+            }
+
+            updateHUD();
+            renderReplayChart();
+        }
+
+        function logTransaction(time, type, price, qty, resultPos, realizedPnl) {
+            tradesLog.push({
+                time: new Date(time).toISOString().replace('T', ' ').substring(0, 19),
+                type: type,
+                price: price,
+                qty: qty,
+                resultPos: resultPos,
+                realizedPnl: realizedPnl
+            });
+        }
+
+        // ── Click-to-order context menu system ──────────────────────────
+        (function setupChartClickOrders() {
+            const ctxMenu = document.getElementById('chart-context-menu');
+            const ctxPriceLabel = document.getElementById('ctx-price-label');
+            const ctxLimitBuy = document.getElementById('ctx-limit-buy');
+            const ctxStopLoss = document.getElementById('ctx-stop-loss');
+            const ctxCancelBtn = document.getElementById('ctx-cancel');
+            let clickedPrice = 0;
+
+            // Convert pixel Y to price
+            function yToPrice(canvasY) {
+                const { paddedMin, paddedRange, height } = chartLayout;
+                if (!paddedRange || paddedRange === 0) return 0;
+                return paddedMin + ((height - 40 - canvasY) / (height - 80)) * paddedRange;
+            }
+
+            canvas.addEventListener('click', (e) => {
+                if (rawCandles.length === 0) return;
+                if (simTimeIndex < gameStartIndex) return;
+
+                const rect = canvas.getBoundingClientRect();
+                const canvasX = e.clientX - rect.left;
+                const canvasY = e.clientY - rect.top;
+
+                clickedPrice = yToPrice(canvasY);
+                if (clickedPrice <= 0) return;
+
+                ctxPriceLabel.innerText = `Price: ${clickedPrice.toFixed(2)}`;
+
+                // Position menu near click, but keep within canvas bounds
+                let menuX = e.clientX - rect.left + 10;
+                let menuY = e.clientY - rect.top - 20;
+                if (menuX + 210 > rect.width) menuX = rect.width - 220;
+                if (menuY + 120 > rect.height) menuY = rect.height - 130;
+                if (menuY < 0) menuY = 5;
+
+                ctxMenu.style.left = menuX + 'px';
+                ctxMenu.style.top = menuY + 'px';
+                ctxMenu.classList.remove('hidden');
+            });
+
+            // Close menu on outside click
+            document.addEventListener('click', (e) => {
+                if (!ctxMenu.contains(e.target) && e.target !== canvas) {
+                    ctxMenu.classList.add('hidden');
+                }
+            });
+
+            ctxCancelBtn.addEventListener('click', () => {
+                ctxMenu.classList.add('hidden');
+            });
+
+            ctxLimitBuy.addEventListener('click', () => {
+                pendingOrders.push({
+                    id: nextOrderId++,
+                    type: 'LIMIT_BUY',
+                    price: Math.round(clickedPrice * 100) / 100,
+                    placedTime: rawCandles[simTimeIndex].time
+                });
+                ctxMenu.classList.add('hidden');
+                updatePendingOrdersUI();
+                renderReplayChart();
+            });
+
+            ctxStopLoss.addEventListener('click', () => {
+                pendingOrders.push({
+                    id: nextOrderId++,
+                    type: 'STOP_LOSS',
+                    price: Math.round(clickedPrice * 100) / 100,
+                    placedTime: rawCandles[simTimeIndex].time
+                });
+                ctxMenu.classList.add('hidden');
+                updatePendingOrdersUI();
+                renderReplayChart();
+            });
+        })();
+
+        // ── Pending Orders UI Manager ────────────────────────────────────
+        function updatePendingOrdersUI() {
+            const panel = document.getElementById('pending-orders-panel');
+            const listEl = document.getElementById('pending-orders-list');
+            const badgeEl = document.getElementById('pending-count-badge');
+            const hudPending = document.getElementById('hud-pending-count');
+
+            if (pendingOrders.length === 0) {
+                panel.classList.add('hidden');
+                if (hudPending) hudPending.classList.add('hidden');
+                return;
+            }
+
+            panel.classList.remove('hidden');
+            badgeEl.innerText = pendingOrders.length;
+            if (hudPending) {
+                hudPending.classList.remove('hidden');
+                hudPending.innerText = `${pendingOrders.length} Pending Order${pendingOrders.length > 1 ? 's' : ''}`;
+            }
+
+            listEl.innerHTML = '';
+            pendingOrders.forEach(order => {
+                const isLB = order.type === 'LIMIT_BUY';
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between gap-2 px-2 py-1.5 bg-[#161b26] border border-[#2a2e39] rounded-lg text-[10px]';
+                div.innerHTML = `
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full ${isLB ? 'bg-cyan-400' : 'bg-orange-400'}"></span>
+                        <span class="font-semibold ${isLB ? 'text-cyan-400' : 'text-orange-400'}">${isLB ? 'Limit Buy' : 'Stop Loss'}</span>
+                    </div>
+                    <span class="font-mono-custom text-gray-300">${order.price.toFixed(1)}</span>
+                    <button class="cancel-pending-order px-1.5 py-0.5 bg-red-500/10 hover:bg-red-500/30 text-red-400 rounded text-[9px] font-bold transition-all" data-order-id="${order.id}">✕</button>
+                `;
+                listEl.appendChild(div);
+            });
+
+            // Attach cancel listeners
+            listEl.querySelectorAll('.cancel-pending-order').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const orderId = parseInt(e.target.getAttribute('data-order-id'));
+                    pendingOrders = pendingOrders.filter(o => o.id !== orderId);
+                    updatePendingOrdersUI();
+                    renderReplayChart();
+                });
+            });
+        }
+
+        function updateHUD() {
+            const currentClose = rawCandles[simTimeIndex].close;
+            const currentTime = rawCandles[simTimeIndex].time;
+            const isInHistory = simTimeIndex < gameStartIndex;
+
+            // Compute current floating profit metrics on-the-fly
+            if (activePosition > 0) {
+                floatingProfit = activePosition * (currentClose - avgEntryPrice);
+            } else if (activePosition < 0) {
+                floatingProfit = Math.abs(activePosition) * (avgEntryPrice - currentClose);
+            } else {
+                floatingProfit = 0.0;
+            }
+
+            // HUD Values binding
+            const simTimeEl = document.getElementById('hud-sim-time');
+            simTimeEl.innerText = new Date(currentTime).toISOString().replace('T', ' ').substring(0, 19);
+
+            // Show / hide history mode indicators
+            const historyBadge = document.getElementById('hud-history-badge');
+            const liveIndicator = document.getElementById('hud-live-indicator');
+            if (historyBadge) historyBadge.classList.toggle('hidden', !isInHistory);
+            if (liveIndicator) liveIndicator.classList.toggle('hidden', isInHistory);
+
+            // Dim trading buttons in history mode
+            [buyBtn, sellBtn, closeBtn].forEach(btn => {
+                btn.style.opacity = isInHistory ? '0.4' : '1';
+                btn.title = isInHistory ? 'Advance to SESSION START to trade' : '';
+            });
+            
+            // Format Position Display text
+            const posElement = document.getElementById('hud-position');
+            if (activePosition > 0) {
+                posElement.innerText = `${activePosition} Buy Position${activePosition > 1 ? 's' : ''}`;
+                posElement.className = "text-sm font-bold text-emerald-400";
+                document.getElementById('pnl-marker').innerText = `${activePosition} Long @ ${avgEntryPrice.toFixed(1)}`;
+                document.getElementById('pnl-marker').className = "text-[11px] font-bold text-emerald-400 pt-0.5";
+            } else if (activePosition < 0) {
+                posElement.innerText = `${Math.abs(activePosition)} Short Position${Math.abs(activePosition) > 1 ? 's' : ''}`;
+                posElement.className = "text-sm font-bold text-red-400";
+                document.getElementById('pnl-marker').innerText = `${Math.abs(activePosition)} Short @ ${avgEntryPrice.toFixed(1)}`;
+                document.getElementById('pnl-marker').className = "text-[11px] font-bold text-red-400 pt-0.5";
+            } else {
+                posElement.innerText = "0 (Flat)";
+                posElement.className = "text-sm font-bold text-gray-400";
+                document.getElementById('pnl-marker').innerText = "No active positions";
+                document.getElementById('pnl-marker').className = "text-[11px] font-bold text-gray-500 pt-0.5";
+            }
+
+            document.getElementById('hud-entry-price').innerText = activePosition !== 0 ? avgEntryPrice.toFixed(1) : "-";
+            
+            // Format Floating profit colors
+            const floatElement = document.getElementById('hud-floating-pnl');
+            floatElement.innerText = (floatingProfit >= 0 ? '+$' : '-$') + Math.abs(floatingProfit).toFixed(2);
+            floatElement.className = `font-mono-custom text-sm font-bold ${floatingProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+
+            // Format Realized Profit
+            const realElement = document.getElementById('hud-realized-pnl');
+            realElement.innerText = (realizedProfit >= 0 ? '+$' : '-$') + Math.abs(realizedProfit).toFixed(2);
+            realElement.className = `font-mono-custom text-sm font-bold ${realizedProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+
+            // Format Balance
+            document.getElementById('hud-balance').innerText = '$' + accountBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // Draw basic visual layout before initial play state
+        function drawPlaceholderChart() {
+            const width = canvas.width / window.devicePixelRatio;
+            const height = canvas.height / window.devicePixelRatio;
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = "#131722";
+            ctx.fillRect(0, 0, width, height);
+            
+            ctx.fillStyle = "#474f75";
+            ctx.font = "14px sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("Ready to simulate! Select a date and click Launch above.", width / 2, height / 2);
+        }
+
+        // END GAME TRIGGER
+        document.getElementById('btn-end-game').addEventListener('click', () => {
+            if (activePosition !== 0) {
+                if (!confirm("You have open positions active. Ending now will auto-close all remaining positions at market value. Proceed?")) {
+                    return;
+                }
+                executeTrade('CLOSE');
+            }
+            toggleAutoplay(false);
+            showScoreboard();
+        });
+
+        function showScoreboard() {
+            document.getElementById('game-workspace').classList.add('hidden');
+            document.getElementById('scoreboard-page').classList.remove('hidden');
+
+            const netPnl = accountBalance - startBalance;
+            const winRate = calculateWinRate();
+
+            // Populate Score Values
+            document.getElementById('score-balance').innerText = '$' + accountBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            
+            const scoreProfit = document.getElementById('score-profit');
+            scoreProfit.innerText = (netPnl >= 0 ? '+$' : '-$') + Math.abs(netPnl).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            scoreProfit.className = `text-lg font-bold font-mono-custom ${netPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+
+            document.getElementById('score-winrate').innerText = winRate.toFixed(1) + '%';
+            document.getElementById('score-trades').innerText = tradesLog.length;
+
+            // Populate Table
+            const tbody = document.getElementById('score-trades-body');
+            tbody.innerHTML = '';
+
+            if (tradesLog.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-500">No trading activity recorded during this session.</td></tr>`;
+                return;
+            }
+
+            tradesLog.forEach(t => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-[#1a1e2d]";
+                
+                let pnlClass = "text-gray-400";
+                if (t.realizedPnl > 0) pnlClass = "text-emerald-400 font-semibold";
+                else if (t.realizedPnl < 0) pnlClass = "text-red-400 font-semibold";
+
+                tr.innerHTML = `
+                    <td class="p-3 text-gray-300">${t.time}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${t.type.includes('BUY') ? 'bg-emerald-500/10 text-emerald-400' : t.type.includes('SELL') ? 'bg-red-500/10 text-red-400' : 'bg-gray-500/10 text-gray-300'}">${t.type}</span></td>
+                    <td class="p-3 text-right text-gray-200 font-mono-custom">${t.price.toFixed(1)}</td>
+                    <td class="p-3 text-right text-gray-300 font-mono-custom">${t.qty > 0 ? '+' + t.qty : t.qty}</td>
+                    <td class="p-3 text-right text-gray-300 font-mono-custom">${t.resultPos}</td>
+                    <td class="p-3 text-right font-mono-custom ${pnlClass}">${t.realizedPnl !== 0 ? (t.realizedPnl > 0 ? '+' : '') + t.realizedPnl.toFixed(2) : '-'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function calculateWinRate() {
+            // Evaluates ratio of profitable trades inside logs
+            const closedTrades = tradesLog.filter(t => t.realizedPnl !== 0);
+            if (closedTrades.length === 0) return 0.0;
+            const wins = closedTrades.filter(t => t.realizedPnl > 0);
+            return (wins.length / closedTrades.length) * 100.0;
+        }
+
+        // CSV Downloader Utility
+        document.getElementById('btn-download-csv').addEventListener('click', () => {
+            if (tradesLog.length === 0) {
+                alert("No transactions to export.");
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Time,Type,Price,QuantityChange,ResultingPosition,RealizedPnL\n";
+
+            tradesLog.forEach(t => {
+                csvContent += `"${t.time}","${t.type}",${t.price},${t.qty},${t.resultPos},${t.realizedPnl}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `NAS100_TradeHistory_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        // Restart to Startup Screen Handler
+        document.getElementById('btn-restart').addEventListener('click', () => {
+            document.getElementById('scoreboard-page').classList.add('hidden');
+            document.getElementById('start-page').classList.remove('hidden');
+            
+            // Reset AI panel display styles so next launch can toggle them properly
+            const aiPanel = document.getElementById('ai-panel');
+            const aiHandle = document.getElementById('ai-panel-handle');
+            const aiCoachSection = document.getElementById('ai-coach-section');
+            aiPanel.style.display = '';
+            aiPanel.classList.add('hidden');
+            aiHandle.style.display = '';
+            aiHandle.classList.add('hidden');
+            if (aiCoachSection) aiCoachSection.style.display = '';
+
+            // Clean AI Output fields
+            document.getElementById('ai-analysis-output').classList.add('hidden');
+            document.getElementById('ai-chat-messages').innerHTML = `
+                <div class="bg-[#161b26]/70 border border-[#2a2e39] p-3.5 rounded-xl space-y-1 text-gray-300">
+                    <p class="font-semibold text-emerald-400 flex items-center gap-1 text-[11px]">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                        ✨ AI Trading Partner
+                    </p>
+                    <p class="leading-relaxed text-gray-300 text-[11px]">
+                        Hello! I am observing your NAS100 backtesting session. Ask me to formulate risk plans, audit your active positioning, or look for upcoming patterns!
+                    </p>
+                </div>
+            `;
+            document.getElementById('ai-coach-output').classList.add('hidden');
+        });
+
+        // ==========================================
+        //  ✨ GEMINI API INTEGRATIONS & LOGIC
+        // ==========================================
+
+        // Generic API caller implementing retry backoffs (up to 5 attempts, exponential delays)
+        async function callGemini(prompt, systemInstruction = "") {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }]
+            };
+            if (systemInstruction) {
+                payload.systemInstruction = { parts: [{ text: systemInstruction }] };
+            }
+
+            let delay = 1000;
+            const maxRetries = 5;
+
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    const response = await fetch(url, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP Error Status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (text) {
+                        return text;
+                    } else {
+                        throw new Error("Received empty content array.");
+                    }
+                } catch (error) {
+                    if (attempt === maxRetries - 1) {
+                        throw error;
+                    }
+                    // Exponential Backoff Wait (No logs to console per instructions)
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        // Render basic markdown formatting directly to beautiful raw HTML elements
+        function renderMarkdownToHtml(text) {
+            if (!text) return "";
+            let lines = text.split('\n');
+            let html = "";
+            let inList = false;
+
+            for (let line of lines) {
+                line = line.trim();
+                if (!line) {
+                    if (inList) {
+                        html += "</ul>";
+                        inList = false;
+                    }
+                    continue;
+                }
+
+                // Headers
+                if (line.startsWith("###")) {
+                    if (inList) { html += "</ul>"; inList = false; }
+                    html += `<h4 class="text-xs font-bold text-emerald-400 mt-3 mb-1 uppercase tracking-wider">${line.replace(/^###\s*/, "")}</h4>`;
+                } else if (line.startsWith("##") || line.startsWith("#")) {
+                    if (inList) { html += "</ul>"; inList = false; }
+                    html += `<h3 class="text-xs font-bold text-white mt-4 mb-2 border-b border-[#2a2e39] pb-1 uppercase tracking-widest">${line.replace(/^##?\s*/, "")}</h3>`;
+                } 
+                // List items
+                else if (line.startsWith("-") || line.startsWith("*")) {
+                    if (!inList) {
+                        html += '<ul class="list-disc pl-4 space-y-1.5 my-2 text-gray-300 text-[11px]">';
+                        inList = true;
+                    }
+                    let itemContent = line.replace(/^[-\*]\s*/, "");
+                    html += `<li>${replaceInlineMarkdown(itemContent)}</li>`;
+                } 
+                // Normal paragraphs
+                else {
+                    if (inList) {
+                        html += "</ul>";
+                        inList = false;
+                    }
+                    html += `<p class="text-[11px] text-gray-300 leading-relaxed mb-2">${replaceInlineMarkdown(line)}</p>`;
+                }
+            }
+            if (inList) {
+                html += "</ul>";
+            }
+            return html;
+        }
+
+        function replaceInlineMarkdown(text) {
+            // Double asterisks bold conversion
+            let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+            // Backticks code element styling conversion
+            formatted = formatted.replace(/`(.*?)`/g, '<code class="px-1 py-0.5 bg-[#1a1f2e] text-yellow-400 rounded font-mono-custom text-[10px]">$1</code>');
+            return formatted;
+        }
+
+        // Gathers visual chart and portfolio states for Gemini's structured prompts
+        function getMarketSummaryForAI() {
+            const candles = getAggregatedCandles();
+            if (candles.length === 0) return null;
+
+            // Take last 15 candles for quick analysis window payload
+            const sampleCandles = candles.slice(-15).map(c => ({
+                time: new Date(c.time).toISOString().replace('T', ' ').substring(11, 16),
+                open: c.open.toFixed(1),
+                high: c.high.toFixed(1),
+                low: c.low.toFixed(1),
+                close: c.close.toFixed(1),
+                ma50: c.ma50 ? c.ma50.toFixed(1) : "Calculating"
+            }));
+
+            const lastC = candles[candles.length - 1];
+            const maValue = lastC.ma50 ? lastC.ma50.toFixed(1) : "Calculating...";
+
+            return {
+                assetName: "NAS100 Index",
+                timeframe: currentInterval,
+                currentTime: new Date(rawCandles[simTimeIndex].time).toISOString().replace('T', ' ').substring(0, 19),
+                currentPrice: lastC.close.toFixed(1),
+                indicator_50MA: maValue,
+                activePosition: activePosition > 0 ? `Long (${activePosition} units)` : activePosition < 0 ? `Short (${Math.abs(activePosition)} units)` : "Flat (0 units)",
+                averageEntryPrice: activePosition !== 0 ? avgEntryPrice.toFixed(1) : "N/A",
+                floatingPnL: floatingProfit.toFixed(2),
+                realizedPnL: realizedProfit.toFixed(2),
+                accountBalance: accountBalance.toFixed(2),
+                recentPriceAction: sampleCandles
+            };
+        }
+
+        // Listeners for Collapsing Sidebar Drawer & Toggles
+        function setupAiPanelListeners() {
+            const aiPanel = document.getElementById('ai-panel');
+            const aiPanelHandle = document.getElementById('ai-panel-handle');
+            const btnCloseAi = document.getElementById('btn-toggle-ai-panel');
+
+            // Collapse action
+            btnCloseAi.addEventListener('click', () => {
+                aiPanel.classList.add('hidden');
+                aiPanelHandle.classList.remove('hidden');
+                setTimeout(resizeCanvas, 150);
+            });
+
+            // Expand action
+            aiPanelHandle.addEventListener('click', () => {
+                aiPanelHandle.classList.add('hidden');
+                aiPanel.classList.remove('hidden');
+                setTimeout(resizeCanvas, 150);
+            });
+
+            // Tab toggling setup
+            const tabAnalyst = document.getElementById('tab-ai-analyst');
+            const tabCopilot = document.getElementById('tab-ai-copilot');
+            const panelAnalyst = document.getElementById('ai-analyst-panel');
+            const panelCopilot = document.getElementById('ai-copilot-panel');
+
+            tabAnalyst.addEventListener('click', () => {
+                tabAnalyst.className = "flex-1 py-3 text-center text-emerald-400 border-b-2 border-emerald-500 transition-all uppercase tracking-wider";
+                tabCopilot.className = "flex-1 py-3 text-center text-gray-400 hover:text-white border-b-2 border-transparent transition-all uppercase tracking-wider";
+                panelAnalyst.classList.remove('hidden');
+                panelCopilot.classList.add('hidden');
+            });
+
+            tabCopilot.addEventListener('click', () => {
+                tabCopilot.className = "flex-1 py-3 text-center text-emerald-400 border-b-2 border-emerald-500 transition-all uppercase tracking-wider";
+                tabAnalyst.className = "flex-1 py-3 text-center text-gray-400 hover:text-white border-b-2 border-transparent transition-all uppercase tracking-wider";
+                panelAnalyst.classList.add('hidden');
+                panelCopilot.classList.remove('hidden');
+                panelCopilot.classList.add('flex');
+            });
+
+            // Send Button triggers
+            const btnSendChat = document.getElementById('btn-send-chat');
+            const chatInput = document.getElementById('ai-chat-input');
+
+            btnSendChat.addEventListener('click', () => sendLiveChatMessage());
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') sendLiveChatMessage();
+            });
+
+            // Prompts suggestions
+            document.querySelectorAll('.quick-prompt-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const cleanTxt = btn.innerText.replace('✨', '').trim();
+                    sendLiveChatMessage(cleanTxt);
+                });
+            });
+
+            // Real-time market Pattern Analyzer prompt
+            document.getElementById('btn-trigger-ai-analysis').addEventListener('click', triggerAiMarketAnalysis);
+            
+            // Post game psychological coach audit review triggers
+            document.getElementById('btn-request-ai-audit').addEventListener('click', triggerScoreboardCoachingAudit);
+        }
+
+        // Trigger dynamic AI assessment of active chart
+        async function triggerAiMarketAnalysis() {
+            const marketState = getMarketSummaryForAI();
+            if (!marketState) {
+                alert("Please start the simulation first to analyze live chart data.");
+                return;
+            }
+
+            const outputDiv = document.getElementById('ai-analysis-output');
+            const bodyDiv = document.getElementById('ai-analysis-body');
+            const timestampSpan = document.getElementById('ai-analysis-timestamp');
+
+            outputDiv.classList.remove('hidden');
+            bodyDiv.innerHTML = `
+                <div class="flex items-center gap-2 justify-center py-6 text-emerald-400 font-mono-custom text-xs animate-pulse">
+                    <span class="inline-block w-4 h-4 border-2 border-emerald-500/20 border-t-emerald-400 rounded-full animate-spin"></span>
+                    Evaluating current candles...
+                </div>
+            `;
+
+            const userPrompt = `
+Analyze the following active NAS100 replay state parameters:
+
+Asset Profile: NAS100 Index
+Active Timeframe Interval: ${marketState.timeframe}
+Active Global Time: ${marketState.currentTime}
+Last Closing Price Node: ${marketState.currentPrice}
+50-Period Simple Moving Average: ${marketState.indicator_50MA}
+My Current Trade Position: ${marketState.activePosition}
+Average Trade Entry Cost: ${marketState.averageEntryPrice}
+Floating Unrealized PnL: $${marketState.floatingPnL}
+Realized Profit so far: $${marketState.realizedPnL}
+Trading Equity Balance: $${marketState.accountBalance}
+
+Candlestick Series (Chronological, last 15 candles):
+${JSON.stringify(marketState.recentPriceAction, null, 2)}
+            `;
+
+            const systemInstruction = `
+You are an expert technical risk consultant and proprietary desk trading coach specialized in high-frequency indexes (NAS100).
+Critique the user's current candles, its trends against the 50MA, and their running position size.
+Structure your assessment into:
+1. Trend & Structure Evaluation (Highlight if the index is in a range or breakout, above/below the 50MA, and describe overall momentum).
+2. Key Candlestick Patterns (Identify if we see engulfing bars, pin bars, hammer, head & shoulders, consolidation ranges, etc.).
+3. Tactical Trade Plan (Tell the user exactly what to do next: hold, trim, stop out, reverse, or add based on their position and technical signals).
+Respond directly, professionally, and compactly. Use markdown double asterisks for emphasizing key words.
+            `;
+
+            try {
+                const response = await callGemini(userPrompt, systemInstruction);
+                const timeStr = new Date().toTimeString().split(' ')[0];
+                timestampSpan.innerText = `Compiled at ${timeStr}`;
+                bodyDiv.innerHTML = renderMarkdownToHtml(response);
+            } catch (err) {
+                bodyDiv.innerHTML = `
+                    <div class="text-red-400 font-mono-custom text-xs p-3 bg-red-950/20 rounded-lg border border-red-500/20 space-y-1">
+                        <p class="font-bold">✨ Analyst Connection Notice</p>
+                        <p class="text-[10px] leading-relaxed text-gray-400">${err.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Process Interactive Live Chats
+        async function sendLiveChatMessage(customText = null) {
+            const chatInput = document.getElementById('ai-chat-input');
+            const messageText = customText ? customText : chatInput.value.trim();
+            if (!messageText) return;
+
+            // Reset field
+            if (!customText) chatInput.value = "";
+
+            appendChatBubble('USER', messageText);
+            const loadingId = appendChatBubble('SYSTEM_LOADING', "Generating copilot review...");
+
+            const snapshot = getMarketSummaryForAI();
+            const systemInstruction = `
+You are "✨ Gemini Trading Copilot", a real-time smart backtesting advisor.
+You are helping the trader improve their execution discipline, spot patterns, calculate position sizing, and control FOMO.
+The user is currently backtesting a NAS100 dataset. Here is their current market context:
+- Price: ${snapshot ? snapshot.currentPrice : 'N/A'}
+- Timeframe: ${snapshot ? snapshot.timeframe : 'N/A'}
+- Current Position Size: ${snapshot ? snapshot.activePosition : 'N/A'}
+- Unrealized Profit/Loss: $${snapshot ? snapshot.floatingPnL : 'N/A'}
+- Realized Net Profit: $${snapshot ? snapshot.realizedPnL : 'N/A'}
+
+Be professional, encouraging, and focused. Advise them with risk frameworks, and briefly reference structural patterns on their chart. Reply concisely and use clean markdown formatting.
+            `;
+
+            try {
+                const response = await callGemini(messageText, systemInstruction);
+                const loadingEl = document.getElementById(loadingId);
+                if (loadingEl) loadingEl.remove();
+
+                appendChatBubble('COPILOT', response);
+            } catch (err) {
+                const loadingEl = document.getElementById(loadingId);
+                if (loadingEl) loadingEl.remove();
+
+                appendChatBubble('ERROR', `Connection failed: ${err.message}`);
+            }
+        }
+
+        function appendChatBubble(role, content) {
+            const chatBox = document.getElementById('ai-chat-messages');
+            const bubble = document.createElement('div');
+            const id = 'bubble-' + Math.random().toString(36).substring(2, 9);
+            bubble.id = id;
+            bubble.className = "p-3 rounded-xl space-y-1 text-xs leading-relaxed";
+
+            if (role === 'USER') {
+                bubble.className += " bg-[#1e2232] border border-[#2a2e39] text-white self-end ml-6";
+                bubble.innerHTML = `
+                    <p class="font-semibold text-gray-400 text-[10px]">YOU</p>
+                    <p class="text-gray-200 text-[11px]">${content}</p>
+                `;
+            } else if (role === 'COPILOT') {
+                bubble.className += " bg-[#161b26]/80 border border-[#2a2e39] text-gray-300";
+                bubble.innerHTML = `
+                    <p class="font-semibold text-emerald-400 flex items-center gap-1 text-[11px]">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5 animate-pulse"></i>
+                        ✨ Gemini Copilot
+                    </p>
+                    <div class="text-[11px] space-y-1 text-gray-300">${renderMarkdownToHtml(content)}</div>
+                `;
+            } else if (role === 'SYSTEM_LOADING') {
+                bubble.className += " bg-[#161b26]/50 border border-[#2a2e39]/30 text-gray-500 animate-pulse flex items-center gap-2";
+                bubble.innerHTML = `
+                    <span class="inline-block w-3.5 h-3.5 border-2 border-emerald-500/10 border-t-emerald-400 rounded-full animate-spin"></span>
+                    <span class="text-[11px] text-gray-400 font-mono-custom">${content}</span>
+                `;
+            } else if (role === 'ERROR') {
+                bubble.className += " bg-red-950/20 border border-red-500/20 text-red-300";
+                bubble.innerHTML = `
+                    <p class="font-bold text-red-400 text-[10px]">✨ Copilot Advisory Warning</p>
+                    <p class="text-[10px] text-gray-400 leading-relaxed">${content}</p>
+                `;
+            }
+
+            chatBox.appendChild(bubble);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            lucide.createIcons();
+            return id;
+        }
+
+        // Post-Game Quantitative Coaching Audit Prompt
+        async function triggerScoreboardCoachingAudit() {
+            const loadingSec = document.getElementById('ai-coach-loading');
+            const outputSec = document.getElementById('ai-coach-output');
+            const bodySec = document.getElementById('ai-coach-body');
+
+            loadingSec.classList.remove('hidden');
+            outputSec.classList.add('hidden');
+
+            const netPnl = accountBalance - startBalance;
+            const wr = calculateWinRate();
+
+            // Format transactions history cleanly
+            const formattedLog = tradesLog.map(t => ({
+                timestamp: t.time,
+                action: t.type,
+                executionPrice: t.price,
+                quantity: t.qty,
+                resultingPosition: t.resultPos,
+                realizedPnL: t.realizedPnl
+            }));
+
+            const userPrompt = `
+Here is the performance report card and execution history log of my backtesting session. Please critique my discipline:
+
+Starting Portfolio Value: $${startBalance}
+Final Portfolio Value: $${accountBalance}
+Net Gain/Loss: $${netPnl.toFixed(2)}
+Calculated Win Rate: ${wr.toFixed(1)}%
+Total Orders Logs: ${tradesLog.length}
+
+Chronological Transaction Ledger:
+${JSON.stringify(formattedLog, null, 2)}
+            `;
+
+            const systemInstruction = `
+You are a senior quantitative risk director and psychological performance trading coach.
+Analyze the user's trade metric summary and chronology logs. Produce a strict but constructive performance audit:
+1. Performance Review: Evaluate their final yield, win rate, and execution efficiency relative to transaction costs.
+2. Behavioral Audit: Point out toxic psychological errors (such as: holding losses too long, cutting winning trends short, averaging down on losers, overtrading, panic close actions, or poor position scaling).
+3. Tactical Training Plan: Detail 3 personalized, strict trading rules they must commit to implementing during their next simulated replay session to maximize profit factor.
+Use a professional, rigorous, and analytical tone. Reference actual execution timestamps from their ledger to backup your arguments. Use clean markdown formatting.
+            `;
+
+            try {
+                const response = await callGemini(userPrompt, systemInstruction);
+                loadingSec.classList.add('hidden');
+                outputSec.classList.remove('hidden');
+                bodySec.innerHTML = renderMarkdownToHtml(response);
+            } catch (err) {
+                loadingSec.classList.add('hidden');
+                outputSec.classList.remove('hidden');
+                bodySec.innerHTML = `
+                    <div class="text-red-400 font-mono-custom text-xs p-3 bg-red-950/20 rounded-xl border border-red-500/20 space-y-1">
+                        <p class="font-bold">✨ Performance Audit Interrupted</p>
+                        <p class="text-[10px] leading-relaxed text-gray-400">${err.message}</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
