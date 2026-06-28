@@ -44,11 +44,14 @@
 
         /* ── Mobile / Portrait responsive overrides (fits 4:3 vertical screen) ── */
         @media (max-width: 1024px) or (orientation: portrait) {
-            /* Let app-shell fill 75% of screen height, leaving 1/4 free at bottom for Safari navigation bars */
+            /* Let app-shell and workspace scroll vertically on portrait screens */
             #app-shell {
                 width: 100vw !important;
-                height: 75vh !important;
+                height: auto !important;
+                min-height: 75vh !important;
                 margin-bottom: 25vh !important;
+                overflow: visible !important;
+                display: block !important;
                 /* iOS safe area padding */
                 padding-top: env(safe-area-inset-top);
                 padding-left: env(safe-area-inset-left);
@@ -69,21 +72,32 @@
                 white-space: normal !important;
             }
 
-            /* Make the chart flex wrapper take exactly 3/4 (75%) of the workspace height */
+            #game-workspace {
+                position: relative !important;
+                height: auto !important;
+                min-height: 100% !important;
+                overflow: visible !important;
+                display: flex !important;
+                flex-direction: column !important;
+            }
+
+            /* Make the chart flex wrapper take a prominent 65% of screen height */
             #game-workspace > div:nth-child(2) {
-                height: 75% !important;
+                height: 65vh !important;
+                min-height: 350px !important;
                 flex: none !important;
             }
 
-            /* Control bar: compact 2-row layout occupying remaining space */
+            /* Control bar: compact 2-row layout flowing below the chart */
             #game-workspace > div:last-child {
-                padding: 4px 6px !important;
-                gap: 4px !important;
+                padding: 8px 6px !important;
+                gap: 6px !important;
                 flex-direction: row !important;
                 flex-wrap: wrap !important;
                 align-items: center !important;
                 justify-content: space-between !important;
                 height: auto !important;
+                flex-shrink: 0 !important;
             }
 
             /* Row 1 Left: End Game button wrapper */
@@ -179,7 +193,11 @@
             }
             /* Start page: full width & highly compact for narrow/tall screens */
             #start-page {
+                position: relative !important;
+                height: auto !important;
+                min-height: 75vh !important;
                 padding: 8px !important;
+                overflow-y: visible !important;
             }
             #start-page > div {
                 max-width: 100% !important;
@@ -203,7 +221,11 @@
 
             /* Scoreboard: full width & highly compact */
             #scoreboard-page {
+                position: relative !important;
+                height: auto !important;
+                min-height: 75vh !important;
                 padding: 8px !important;
+                overflow-y: visible !important;
             }
             #scoreboard-page > div {
                 max-width: 100% !important;
