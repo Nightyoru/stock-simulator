@@ -42,8 +42,8 @@
             background: #474f75;
         }
 
-        /* ── Mobile / iPhone responsive overrides ────────────────── */
-        @media (max-width: 768px) {
+        /* ── Mobile / Portrait responsive overrides (fits 4:3 vertical screen) ── */
+        @media (max-width: 1024px) or (orientation: portrait) {
             /* Let app-shell fill 75% of screen height, leaving 1/4 free at bottom for Safari navigation bars */
             #app-shell {
                 width: 100vw !important;
@@ -56,51 +56,73 @@
                 padding-bottom: env(safe-area-inset-bottom);
             }
 
-            /* Compact the HUD header */
-            #game-workspace > header {
-                padding: 6px 10px;
-                gap: 6px;
-                font-size: 10px;
-            }
-            #game-workspace > header .text-xs { font-size: 8px; }
-            #game-workspace > header .text-sm { font-size: 10px; }
-            #game-workspace > header > div { gap: 4px; }
-            #game-workspace > header > div > div { gap: 3px; }
-
-            /* Hide non-essential HUD items on very small screens */
-            @media (max-width: 480px) {
-                #game-workspace > header > div:last-child > div:nth-child(2),
-                #game-workspace > header > div:last-child > div:nth-child(3) {
-                    display: none;
-                }
-            }
-
-            /* AI panel hidden by default on mobile */
+            /* Hide AI panel on mobile layout to maximize chart space */
             #ai-panel { display: none !important; }
             #ai-panel-handle { display: none !important; }
 
-            /* Control bar: stack vertically, smaller padding */
+            /* Compact & wrap the HUD header info bar */
+            #chart-info-bar {
+                flex-wrap: wrap !important;
+                gap: 6px 10px !important;
+                padding: 6px 10px !important;
+                font-size: 10px !important;
+                white-space: normal !important;
+            }
+
+            /* Control bar: stack vertically */
             #game-workspace > div:last-child {
-                padding: 6px 8px;
-                gap: 6px;
-                flex-direction: column;
-                align-items: stretch;
+                padding: 8px !important;
+                gap: 8px !important;
+                flex-direction: column !important;
+                align-items: stretch !important;
             }
-            /* Playback row */
-            #game-workspace > div:last-child > div:nth-child(2) { justify-content: center; }
 
-            /* Trade buttons: compact, full-width row */
+            /* Wrap the Playback controls container into two logical rows */
+            #game-workspace > div:last-child > div:nth-child(2) {
+                flex-wrap: wrap !important;
+                width: 100% !important;
+                background: #1c2030 !important;
+                padding: 8px !important;
+                gap: 8px !important;
+                border-radius: 12px !important;
+            }
+
+            /* Make Interval Toggles fill the first row of playback controls */
+            #game-workspace > div:last-child > div:nth-child(2) > div:first-child {
+                width: 100% !important;
+                display: flex !important;
+            }
+            #game-workspace > div:last-child > div:nth-child(2) > div:first-child button {
+                flex: 1 !important;
+                padding: 6px 2px !important;
+            }
+
+            /* Next Bar, Autoplay, and Speed occupy the second row */
+            #btn-next {
+                flex-grow: 1 !important;
+                justify-content: center !important;
+                padding: 8px 12px !important;
+            }
+            #btn-autoplay {
+                flex-shrink: 0 !important;
+                padding: 8px 12px !important;
+            }
+            #select-speed {
+                flex-shrink: 0 !important;
+            }
+
+            /* Trade buttons: compact, equal flex-1 width row */
             #btn-buy, #btn-sell, #btn-close {
-                padding: 10px 8px;
-                font-size: 11px;
-                flex: 1;
-                justify-content: center;
+                padding: 12px 6px !important;
+                font-size: 11px !important;
+                flex: 1 !important;
+                justify-content: center !important;
             }
-            #btn-buy .lucide, #btn-sell .lucide { display: none; }
-            #btn-buy span, #btn-sell span { font-size: 11px; }
+            #btn-buy .lucide, #btn-sell .lucide { display: none !important; }
+            #btn-buy span, #btn-sell span { font-size: 11px !important; }
 
-            /* End Simulation button: smaller */
-            #btn-end-game { padding: 8px 12px; font-size: 11px; }
+            /* End Simulation button */
+            #btn-end-game { padding: 8px 12px !important; font-size: 11px !important; }
 
             /* Chart overlay HUD box: smaller on mobile */
             .absolute.top-4.left-4 {
@@ -113,20 +135,86 @@
 
             /* Context menu: wider touch targets */
             #chart-context-menu button {
-                padding: 10px 12px;
-                font-size: 13px;
+                padding: 10px 12px !important;
+                font-size: 13px !important;
             }
-
-            /* Start page: full width */
+            /* Start page: full width & highly compact for narrow/tall screens */
+            #start-page {
+                padding: 8px !important;
+            }
             #start-page > div {
                 max-width: 100% !important;
-                border-radius: 0 !important;
+                border-radius: 12px !important;
+                padding: 14px !important;
+                gap: 12px !important;
+            }
+            #start-page h1 {
+                font-size: 22px !important;
+            }
+            #start-page p {
+                font-size: 11px !important;
+            }
+            #start-page #upload-zone {
+                padding: 12px !important;
+            }
+            #start-page input, #start-page button {
+                padding: 10px 12px !important;
+                font-size: 12px !important;
             }
 
-            /* Scoreboard: full width */
+            /* Scoreboard: full width & highly compact */
+            #scoreboard-page {
+                padding: 8px !important;
+            }
             #scoreboard-page > div {
                 max-width: 100% !important;
-                padding: 16px !important;
+                border-radius: 12px !important;
+                padding: 14px !important;
+                gap: 10px !important;
+            }
+            #scoreboard-page h1 {
+                font-size: 22px !important;
+            }
+            #scoreboard-page .grid {
+                gap: 6px !important;
+            }
+            #scoreboard-page .grid > div {
+                padding: 8px !important;
+            }
+            #scoreboard-page .max-h-40 {
+                max-h: 120px !important;
+            }
+
+            /* Compact HUD header for vertical screens */
+            #game-workspace > header {
+                padding: 4px 8px !important;
+                gap: 4px 8px !important;
+                font-size: 10px !important;
+                flex-wrap: wrap !important;
+                justify-content: space-between !important;
+            }
+            #game-workspace > header > div {
+                gap: 4px 8px !important;
+                flex-wrap: wrap !important;
+                align-items: center !important;
+            }
+            #game-workspace > header .h-4.w-px {
+                display: none !important;
+            }
+            #game-workspace > header .text-xs {
+                display: inline-block !important;
+                font-size: 8px !important;
+                margin-right: 2px !important;
+                vertical-align: middle !important;
+            }
+            #game-workspace > header .text-sm {
+                font-size: 10px !important;
+                display: inline-block !important;
+                vertical-align: middle !important;
+            }
+            #game-workspace > header > div > div {
+                display: inline-block !important;
+                white-space: nowrap !important;
             }
 
             /* Pending orders panel: full width bottom strip */
