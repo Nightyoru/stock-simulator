@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head> 
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -280,25 +280,20 @@
         <div class="flex-1 flex min-h-0 relative">
             <!-- Left Side: Main Trading Chart -->
             <main class="flex-1 relative bg-[#0d0f17] flex flex-col min-h-0 select-none">
-                <!-- HUD Information Box directly on Chart (Top Left) -->
-                <div class="absolute top-4 left-4 z-10 bg-[#131722]/90 backdrop-blur-md border border-[#2a2e39] p-3 rounded-xl pointer-events-none font-mono-custom text-xs space-y-1 shadow-lg max-w-[280px]">
-                    <div class="flex justify-between gap-4 text-emerald-400 font-semibold" id="hud-asset-name">NAS100 Index</div>
-                    <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-gray-400 pt-1">
-                        <span>O: <span id="ohlc-open" class="text-white">0</span></span>
-                        <span>H: <span id="ohlc-high" class="text-white">0</span></span>
-                        <span>L: <span id="ohlc-low" class="text-white">0</span></span>
-                        <span>C: <span id="ohlc-close" class="text-white">0</span></span>
-                    </div>
-                    <div class="border-t border-[#2a2e39] my-1 pt-1 text-[11px] flex justify-between">
-                        <span class="text-gray-400">MA(50):</span>
-                        <span id="hud-ma" class="text-yellow-400">Calculating...</span>
-                    </div>
-                    <div id="pnl-marker" class="text-[11px] font-bold text-gray-500 pt-0.5">
-                        No active positions
-                    </div>
-                    <div id="hud-pending-count" class="text-[11px] text-yellow-400 pt-0.5 hidden">
-                        0 Pending Orders
-                    </div>
+                <!-- Chart Info Bar (above canvas, below header) -->
+                <div class="bg-[#0d0f17] border-b border-[#1e2230] px-3 py-1 flex items-center gap-4 overflow-x-auto font-mono-custom text-[11px] whitespace-nowrap select-none flex-shrink-0" id="chart-info-bar">
+                    <span class="text-emerald-400 font-bold tracking-wide mr-1" id="hud-asset-name">NAS100</span>
+                    <span class="text-gray-500">O:<span id="ohlc-open" class="text-white ml-1">0</span></span>
+                    <span class="text-gray-500">H:<span id="ohlc-high" class="text-emerald-400 ml-1">0</span></span>
+                    <span class="text-gray-500">L:<span id="ohlc-low" class="text-red-400 ml-1">0</span></span>
+                    <span class="text-gray-500">C:<span id="ohlc-close" class="text-white ml-1 font-bold">0</span></span>
+                    <span class="text-gray-600">|</span>
+                    <span class="text-gray-500">MA50:<span id="hud-ma" class="text-yellow-400 ml-1">—</span></span>
+                    <span class="text-gray-600">|</span>
+                    <span id="pnl-marker" class="font-bold text-gray-500">Flat</span>
+                    <span id="hud-pending-count" class="text-yellow-400 hidden">0 Pending</span>
+                    <span class="text-gray-600">|</span>
+                    <span class="text-gray-500">Zoom:<span id="hud-zoom" class="text-gray-300 ml-1">250</span></span>
                 </div>
 
                 <!-- Canvas Container -->
@@ -624,7 +619,16 @@
         let nextOrderId = 1;
 
         // Chart coordinate mapping (updated each render for click-to-price)
-        let chartLayout = { paddingLeft: 10, paddingRight: 75, paddedMin: 0, paddedMax: 1, width: 0, height: 0 };
+        let chartLayout = { paddingLeft: 10, paddingRight: 75, paddedMin: 0, paddedMax: 1, paddedRange: 1, width: 0, height: 0 };
+
+        // ── Viewport state (zoom + pan) ────────────────────────────────
+        // visibleCandles: how many aggregated candles are shown (zoom level)
+        // viewOffset: how many candles from the RIGHT edge we've panned left
+        //             0 = latest candle at right edge, positive = scrolled left
+        let visibleCandles = 250;  // default: show 250 candles
+        let viewOffset = 0;        // 0 = follow current bar (right-edge pinned)
+        const MIN_VISIBLE = 20;
+        const MAX_VISIBLE = 250;
 
         // Canvas UI dimensions
         const canvas = document.getElementById('chart-canvas');
@@ -952,6 +956,10 @@
             tradesLog = [];
             userTradeMarkers = [];
 
+            // Reset viewport state
+            visibleCandles = 250;
+            viewOffset = 0;
+
             // ── API Key: read from the input field ────────────────────────
             const keyInput = document.getElementById('api-key-input').value.trim();
             apiKey = keyInput;
@@ -1130,8 +1138,8 @@
         }
 
         // Dynamic Aggregator to 1m, 5m, 15m, 1H
+        // Returns exactly visibleCandles candles, offset by viewOffset from the right edge.
         function getAggregatedCandles() {
-            const cutOffTime = rawCandles[simTimeIndex].time;
             const visibleBase = rawCandles.slice(0, simTimeIndex + 1);
 
             let intervalSize = 1;
@@ -1139,40 +1147,40 @@
             else if (currentInterval === '15m') intervalSize = 15;
             else if (currentInterval === '1H') intervalSize = 60;
 
+            let allAggregated;
             if (intervalSize === 1) {
-                return visibleBase.slice(-250); // Direct 1m optimization
-            }
+                allAggregated = visibleBase;
+            } else {
+                const intervalMs = intervalSize * 60 * 1000;
+                const aggregated = [];
+                let currentGroup = null;
 
-            const intervalMs = intervalSize * 60 * 1000;
-            const aggregated = [];
-            let currentGroup = null;
+                for (let i = 0; i < visibleBase.length; i++) {
+                    const b = visibleBase[i];
+                    const intervalStart = Math.floor(b.time / intervalMs) * intervalMs;
 
-            for (let i = 0; i < visibleBase.length; i++) {
-                const b = visibleBase[i];
-                const intervalStart = Math.floor(b.time / intervalMs) * intervalMs;
-
-                if (!currentGroup || currentGroup.time !== intervalStart) {
-                    if (currentGroup) {
-                        aggregated.push(currentGroup);
+                    if (!currentGroup || currentGroup.time !== intervalStart) {
+                        if (currentGroup) aggregated.push(currentGroup);
+                        currentGroup = { time: intervalStart, open: b.open, high: b.high, low: b.low, close: b.close };
+                    } else {
+                        currentGroup.high = Math.max(currentGroup.high, b.high);
+                        currentGroup.low = Math.min(currentGroup.low, b.low);
+                        currentGroup.close = b.close;
                     }
-                    currentGroup = {
-                        time: intervalStart,
-                        open: b.open,
-                        high: b.high,
-                        low: b.low,
-                        close: b.close
-                    };
-                } else {
-                    currentGroup.high = Math.max(currentGroup.high, b.high);
-                    currentGroup.low = Math.min(currentGroup.low, b.low);
-                    currentGroup.close = b.close; // Latest updates close
                 }
-            }
-            if (currentGroup) {
-                aggregated.push(currentGroup);
+                if (currentGroup) aggregated.push(currentGroup);
+                allAggregated = aggregated;
             }
 
-            return aggregated.slice(-250);
+            // Clamp viewOffset so we can't scroll past leftmost data
+            const maxOffset = Math.max(0, allAggregated.length - visibleCandles);
+            viewOffset = Math.min(viewOffset, maxOffset);
+            viewOffset = Math.max(0, viewOffset);
+
+            // Slice the window
+            const endIdx = allAggregated.length - viewOffset;
+            const startIdx = Math.max(0, endIdx - visibleCandles);
+            return allAggregated.slice(startIdx, endIdx);
         }
 
         // Draw dynamic overlay of 50MA & Canvas Grid
@@ -1224,13 +1232,13 @@
             const paddedMax = maxPrice + priceRange * padRatio;
             const paddedRange = paddedMax - paddedMin;
 
-            // X coordinates layout
+            // X coordinates layout — driven by zoom level (visibleCandles)
             const paddingRight = 75;
             const paddingLeft = 10;
             const plotWidth = width - paddingRight - paddingLeft;
-            const candleCount = Math.max(250, displayCandles.length); // Space out like 250 grid
+            const candleCount = Math.max(visibleCandles, displayCandles.length);
             const candleWidth = plotWidth / candleCount;
-            const bodySpacing = candleWidth * 0.2;
+            const bodySpacing = Math.max(candleWidth * 0.15, 0.5);
 
             // Shade the historical (pre-game-start) background region
             if (gameStartTime !== null) {
@@ -1452,18 +1460,123 @@
             });
 
             // ── Store chart coordinate mapping for click-to-price ────────
-            chartLayout = { paddingLeft, paddingRight, paddedMin, paddedMax: paddedMax, paddedRange, width, height };
+            chartLayout = { paddingLeft, paddingRight, paddedMin, paddedMax, paddedRange, width, height };
 
-            // Render dynamic Top Left details
+            // Update chart info bar (above canvas)
             const lastCandle = displayCandles[displayCandles.length - 1];
             if (lastCandle) {
                 document.getElementById('ohlc-open').innerText = lastCandle.open.toFixed(1);
                 document.getElementById('ohlc-high').innerText = lastCandle.high.toFixed(1);
                 document.getElementById('ohlc-low').innerText = lastCandle.low.toFixed(1);
                 document.getElementById('ohlc-close').innerText = lastCandle.close.toFixed(1);
-                document.getElementById('hud-ma').innerText = lastCandle.ma50 ? lastCandle.ma50.toFixed(1) : "Calculating...";
+                document.getElementById('hud-ma').innerText = lastCandle.ma50 ? lastCandle.ma50.toFixed(1) : '—';
             }
+            const zoomEl = document.getElementById('hud-zoom');
+            if (zoomEl) zoomEl.innerText = visibleCandles;
         }
+
+        // ──────────────────────────────────────────────────
+        // Chart Pan & Zoom Input Handlers
+        // ──────────────────────────────────────────────────
+        (function setupChartInteractions() {
+            const cvs = canvas;
+
+            // ── Mouse Wheel Zoom ──────────────────────────────────
+            cvs.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                // deltaY < 0 = scroll up = zoom in (fewer candles)
+                const zoomDelta = e.deltaY > 0 ? 10 : -10;
+                visibleCandles = Math.max(MIN_VISIBLE, Math.min(MAX_VISIBLE, visibleCandles + zoomDelta));
+                renderReplayChart();
+            }, { passive: false });
+
+            // ── Mouse Drag Pan ──────────────────────────────────
+            let isDragging = false;
+            let dragStartX = 0;
+            let dragStartOffset = 0;
+
+            cvs.addEventListener('mousedown', (e) => {
+                // Only initiate drag on left button
+                if (e.button !== 0) return;
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartOffset = viewOffset;
+                cvs.style.cursor = 'grabbing';
+                e.preventDefault();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const rect = cvs.getBoundingClientRect();
+                const plotWidth = rect.width - chartLayout.paddingLeft - chartLayout.paddingRight;
+                // How many pixels per candle?
+                const pixelsPerCandle = plotWidth / visibleCandles;
+                const deltaX = e.clientX - dragStartX;
+                // Dragging right = scrolling left in time (offset increases)
+                const candleDelta = Math.round(-deltaX / pixelsPerCandle);
+                viewOffset = Math.max(0, dragStartOffset + candleDelta);
+                renderReplayChart();
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    cvs.style.cursor = 'crosshair';
+                }
+            });
+
+            // ── Touch Pan (single finger) + Pinch Zoom ─────────────
+            let touchStartX = 0;
+            let touchStartOffset = 0;
+            let pinchStartDist = 0;
+            let pinchStartVisible = 250;
+
+            function getTouchDist(touches) {
+                const dx = touches[0].clientX - touches[1].clientX;
+                const dy = touches[0].clientY - touches[1].clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            cvs.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartOffset = viewOffset;
+                } else if (e.touches.length === 2) {
+                    pinchStartDist = getTouchDist(e.touches);
+                    pinchStartVisible = visibleCandles;
+                }
+                e.preventDefault();
+            }, { passive: false });
+
+            cvs.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 1) {
+                    // Single-finger pan
+                    const rect = cvs.getBoundingClientRect();
+                    const plotWidth = rect.width - chartLayout.paddingLeft - chartLayout.paddingRight;
+                    const pixelsPerCandle = plotWidth / visibleCandles;
+                    const deltaX = e.touches[0].clientX - touchStartX;
+                    const candleDelta = Math.round(-deltaX / pixelsPerCandle);
+                    viewOffset = Math.max(0, touchStartOffset + candleDelta);
+                    renderReplayChart();
+                } else if (e.touches.length === 2) {
+                    // Two-finger pinch zoom
+                    const dist = getTouchDist(e.touches);
+                    const scale = pinchStartDist / dist; // >1 = pinch in = zoom in
+                    visibleCandles = Math.max(MIN_VISIBLE, Math.min(MAX_VISIBLE,
+                        Math.round(pinchStartVisible * scale)
+                    ));
+                    renderReplayChart();
+                }
+                e.preventDefault();
+            }, { passive: false });
+
+            cvs.addEventListener('touchend', (e) => {
+                if (e.touches.length < 2) {
+                    // Ended pinch — reset pinch base
+                    pinchStartDist = 0;
+                }
+            });
+        })();
 
         // AutoPlay Functionality
         const autoplayBtn = document.getElementById('btn-autoplay');
@@ -1630,9 +1743,24 @@
                 return paddedMin + ((height - 40 - canvasY) / (height - 80)) * paddedRange;
             }
 
+            // Track drag distance to distinguish click vs drag
+            let didDragBeforeClick = false;
+            let mouseDownOnCanvas = false;
+
+            canvas.addEventListener('mousedown', () => {
+                mouseDownOnCanvas = true;
+                didDragBeforeClick = false;
+            }, true);
+            window.addEventListener('mousemove', () => {
+                if (mouseDownOnCanvas) didDragBeforeClick = true;
+            });
+            window.addEventListener('mouseup', () => { mouseDownOnCanvas = false; });
+
             canvas.addEventListener('click', (e) => {
                 if (rawCandles.length === 0) return;
                 if (simTimeIndex < gameStartIndex) return;
+                // Ignore if this click ended a drag
+                if (didDragBeforeClick) { didDragBeforeClick = false; return; }
 
                 const rect = canvas.getBoundingClientRect();
                 const canvasX = e.clientX - rect.left;
@@ -1783,8 +1911,8 @@
             } else {
                 posElement.innerText = "0 (Flat)";
                 posElement.className = "text-sm font-bold text-gray-400";
-                document.getElementById('pnl-marker').innerText = "No active positions";
-                document.getElementById('pnl-marker').className = "text-[11px] font-bold text-gray-500 pt-0.5";
+                document.getElementById('pnl-marker').innerText = "Flat";
+                document.getElementById('pnl-marker').className = "font-bold text-gray-500";
             }
 
             document.getElementById('hud-entry-price').innerText = activePosition !== 0 ? avgEntryPrice.toFixed(1) : "-";
