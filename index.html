@@ -69,60 +69,99 @@
                 white-space: normal !important;
             }
 
-            /* Control bar: stack vertically */
+            /* Make the chart flex wrapper take exactly 3/4 (75%) of the workspace height */
+            #game-workspace > div:nth-child(2) {
+                height: 75% !important;
+                flex: none !important;
+            }
+
+            /* Control bar: compact 2-row layout occupying remaining space */
             #game-workspace > div:last-child {
-                padding: 8px !important;
-                gap: 8px !important;
-                flex-direction: column !important;
-                align-items: stretch !important;
-            }
-
-            /* Wrap the Playback controls container into two logical rows */
-            #game-workspace > div:last-child > div:nth-child(2) {
+                padding: 4px 6px !important;
+                gap: 4px !important;
+                flex-direction: row !important;
                 flex-wrap: wrap !important;
-                width: 100% !important;
-                background: #1c2030 !important;
-                padding: 8px !important;
-                gap: 8px !important;
-                border-radius: 12px !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                height: auto !important;
             }
 
-            /* Make Interval Toggles fill the first row of playback controls */
+            /* Row 1 Left: End Game button wrapper */
+            #game-workspace > div:last-child > div:first-child {
+                width: auto !important;
+                display: inline-flex !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            #btn-end-game {
+                padding: 6px 10px !important;
+                font-size: 11px !important;
+                border-radius: 8px !important;
+            }
+            #btn-end-game span {
+                display: none !important; /* Hide text, only show icon to save width */
+            }
+
+            /* Row 1 Right: Playback controls container next to End Game */
+            #game-workspace > div:last-child > div:nth-child(2) {
+                flex: 1 !important;
+                display: inline-flex !important;
+                background: transparent !important;
+                border: none !important;
+                padding: 0 !important;
+                gap: 4px !important;
+                box-shadow: none !important;
+                justify-content: flex-end !important;
+            }
+
+            /* Make Interval Toggles compact pills */
             #game-workspace > div:last-child > div:nth-child(2) > div:first-child {
-                width: 100% !important;
-                display: flex !important;
+                width: auto !important;
+                display: inline-flex !important;
+                background: #121520 !important;
+                border-radius: 8px !important;
+                padding: 2px !important;
             }
             #game-workspace > div:last-child > div:nth-child(2) > div:first-child button {
-                flex: 1 !important;
-                padding: 6px 2px !important;
+                padding: 4px 6px !important;
+                font-size: 10px !important;
             }
 
-            /* Next Bar, Autoplay, and Speed occupy the second row */
+            /* Next Bar, Autoplay, and Speed dropdown sizing */
             #btn-next {
-                flex-grow: 1 !important;
-                justify-content: center !important;
-                padding: 8px 12px !important;
+                flex-grow: 0 !important;
+                padding: 6px 10px !important;
+                font-size: 11px !important;
+                border-radius: 8px !important;
             }
             #btn-autoplay {
                 flex-shrink: 0 !important;
-                padding: 8px 12px !important;
+                padding: 6px 8px !important;
+                border-radius: 8px !important;
             }
             #select-speed {
                 flex-shrink: 0 !important;
+                padding: 4px 6px !important;
+                font-size: 10px !important;
+                border-radius: 8px !important;
             }
 
-            /* Trade buttons: compact, equal flex-1 width row */
+            /* Row 2: Trading buttons (stretched to full width) */
+            #game-workspace > div:last-child > div:last-child {
+                width: 100% !important;
+                display: flex !important;
+                gap: 4px !important;
+                margin-top: 2px !important;
+            }
             #btn-buy, #btn-sell, #btn-close {
-                padding: 12px 6px !important;
+                padding: 10px 4px !important;
                 font-size: 11px !important;
                 flex: 1 !important;
                 justify-content: center !important;
+                border-radius: 8px !important;
             }
             #btn-buy .lucide, #btn-sell .lucide { display: none !important; }
             #btn-buy span, #btn-sell span { font-size: 11px !important; }
-
-            /* End Simulation button */
-            #btn-end-game { padding: 8px 12px !important; font-size: 11px !important; }
 
             /* Chart overlay HUD box: smaller on mobile */
             .absolute.top-4.left-4 {
