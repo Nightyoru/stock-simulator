@@ -1330,6 +1330,19 @@
                 allAggregated = aggregated;
             }
 
+            // Compute 50 MA across all historical aggregated series (using actual past data)
+            for (let i = 0; i < allAggregated.length; i++) {
+                if (i >= 49) {
+                    let sum = 0;
+                    for (let j = i - 49; j <= i; j++) {
+                        sum += allAggregated[j].close;
+                    }
+                    allAggregated[i].ma50 = sum / 50;
+                } else {
+                    allAggregated[i].ma50 = null;
+                }
+            }
+
             // Clamp viewOffset so we can't scroll past leftmost data
             const maxOffset = Math.max(0, allAggregated.length - visibleCandles);
             viewOffset = Math.min(viewOffset, maxOffset);
@@ -1347,19 +1360,6 @@
 
             const displayCandles = getAggregatedCandles();
             if (displayCandles.length === 0) return;
-
-            // Compute 50 MA across aggregated series
-            for (let i = 0; i < displayCandles.length; i++) {
-                if (i >= 49) {
-                    let sum = 0;
-                    for (let j = i - 49; j <= i; j++) {
-                        sum += displayCandles[j].close;
-                    }
-                    displayCandles[i].ma50 = sum / 50;
-                } else {
-                    displayCandles[i].ma50 = null;
-                }
-            }
 
             // Determine the timestamp at which the live session begins
             const gameStartTime = rawCandles[gameStartIndex] ? rawCandles[gameStartIndex].time : null;
