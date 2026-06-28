@@ -10,10 +10,18 @@
     <script src="https://cdn.jsdelivr.net/npm/lucide@0.321.0/dist/umd/lucide.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+        html {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+        }
         body {
             font-family: 'Space Grotesk', sans-serif;
             background-color: #0d0f17;
             color: #e2e8f0;
+            min-height: 100%;
+            width: 100%;
+            overflow: auto;
         }
         .font-mono-custom {
             font-family: 'JetBrains Mono', monospace;
@@ -36,15 +44,16 @@
 
         /* ── Mobile / iPhone responsive overrides ────────────────── */
         @media (max-width: 768px) {
-            /* Let app-shell fill the whole screen on mobile instead of letterbox */
+            /* Let app-shell fill 75% of screen height, leaving 1/4 free at bottom for Safari navigation bars */
             #app-shell {
                 width: 100vw !important;
-                height: 100vh !important;
+                height: 75vh !important;
+                margin-bottom: 25vh !important;
                 /* iOS safe area padding */
                 padding-top: env(safe-area-inset-top);
-                padding-bottom: env(safe-area-inset-bottom);
                 padding-left: env(safe-area-inset-left);
                 padding-right: env(safe-area-inset-right);
+                padding-bottom: env(safe-area-inset-bottom);
             }
 
             /* Compact the HUD header */
@@ -138,7 +147,7 @@
         }
     </style>
 </head>
-<body class="h-screen w-screen overflow-hidden bg-[#0d0f17] flex items-center justify-center">
+<body class="min-h-screen bg-[#0d0f17] flex items-center justify-center overflow-auto">
 
     <!-- 16:9 Application Shell — largest 16:9 box that fits the viewport -->
     <div id="app-shell" class="relative overflow-hidden bg-[#0d0f17]" style="width:min(100vw,calc(100vh * 16 / 9));height:min(100vh,calc(100vw * 9 / 16));">
