@@ -327,6 +327,16 @@
             </div>
         </div>
 
+        <!-- Google Drive Import Button -->
+        <button id="btn-gdrive-trigger" class="w-full py-3 bg-[#1e2232] hover:bg-[#2c314b] border border-[#2a2e39] text-xs text-gray-300 hover:text-emerald-400 rounded-xl transition duration-200 flex items-center justify-center gap-2 font-semibold">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9.167 4.25h5.666l6.834 11.5H16L9.167 4.25z" fill="#0066DA"/>
+                <path d="M14.833 15.75H3.167L6.5 21.5h11.667l-3.334-5.75z" fill="#00AC47"/>
+                <path d="M3.167 15.75L9.167 4.25 12.5 10l-6 10-3.333-4.25z" fill="#FFC107"/>
+            </svg>
+            Import CSV from Google Drive
+        </button>
+
         <div class="space-y-3">
             <label class="block text-sm font-medium text-gray-400">Select Starting Date</label>
             <div class="flex gap-2">
@@ -2631,6 +2641,129 @@ Use a professional, rigorous, and analytical tone. Reference actual execution ti
                 `;
             }
         }
+
+        // ── Google Drive Link Parsing & Fetching ───────────────────────
+        (function setupGoogleDriveImporter() {
+            const modal = document.getElementById('gdrive-modal');
+            const openBtn = document.getElementById('btn-gdrive-trigger');
+            const cancelBtn = document.getElementById('btn-gdrive-cancel');
+            const importBtn = document.getElementById('btn-gdrive-import');
+            const linkInput = document.getElementById('gdrive-link-input');
+            const loader = document.getElementById('gdrive-loading');
+
+            openBtn.addEventListener('click', () => {
+                modal.classList.remove('hidden');
+                linkInput.value = '';
+            });
+
+            cancelBtn.addEventListener('click', () => {
+                modal.classList.add('hidden');
+            });
+
+            importBtn.addEventListener('click', async () => {
+                const rawUrl = linkInput.value.trim();
+                if (!rawUrl) {
+                    alert('Please enter a valid Google Drive URL.');
+                    return;
+                }
+
+                // Extract file ID from link
+                // Formats supported:
+                // 1) .../file/d/FILE_ID/view...
+                // 2) ...id=FILE_ID
+                // 3) .../d/FILE_ID/edit...
+                let fileId = '';
+                const fileDMatch = rawUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                const idParamMatch = rawUrl.match(/[?&]id=([a-zA-Z0-9-_]+)/);
+                
+                if (fileDMatch) {
+                    fileId = fileDMatch[1];
+                } else if (idParamMatch) {
+                    fileId = idParamMatch[1];
+                } else {
+                    alert('Could not parse Google Drive File ID. Please make sure the URL format is correct.');
+                    return;
+                }
+
+                loader.classList.remove('hidden');
+                importBtn.disabled = true;
+
+                // Build direct download URL
+                // We use export format csv (works for Google Sheets) or uc (direct file download)
+                const directUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv`;
+                const fallbackUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+
+                // To bypass CORS client-side, we route it through a CORS proxy
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`;
+                const proxyFallbackUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(fallbackUrl)}`;
+
+                try {
+                    // Try export format first
+                    let response = await fetch(proxyUrl);
+                    if (!response.ok) {
+                        // Fall back to direct file download
+                        response = await fetch(proxyFallbackUrl);
+                    }
+                    if (!response.ok) throw new Error(`HTTP Status ${response.status}`);
+                    
+                    const text = await response.text();
+                    
+                    // Close modal and parse the CSV
+                    modal.classList.add('hidden');
+                    parseCSV(text, `gdrive_file_${fileId.substring(0, 6)}.csv`);
+                } catch (e) {
+                    alert(`Failed to fetch file from Google Drive: ${e.message}\nEnsure the file access is set to 'Anyone with the link can view'.`);
+                } finally {
+                    loader.classList.add('hidden');
+                    importBtn.disabled = false;
+                }
+            });
+        })();
     </script>
+
+    <!-- GOOGLE DRIVE IMPORT MODAL -->
+    <div id="gdrive-modal" class="hidden fixed inset-0 z-50 bg-[#0d0f17]/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-[#131722] border border-[#2a2e39] rounded-2xl p-6 space-y-4 shadow-2xl">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-emerald-500/10 rounded-lg">
+                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9.167 4.25h5.666l6.834 11.5H16L9.167 4.25z" fill="#0066DA"/>
+                        <path d="M14.833 15.75H3.167L6.5 21.5h11.667l-3.334-5.75z" fill="#00AC47"/>
+                        <path d="M3.167 15.75L9.167 4.25 12.5 10l-6 10-3.333-4.25z" fill="#FFC107"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-white">Import from Google Drive</h3>
+                    <p class="text-xs text-gray-400">Load your financial CSV bars directly from the cloud</p>
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-xs font-semibold text-gray-400">Google Drive Share Link</label>
+                <input type="text" id="gdrive-link-input" placeholder="https://drive.google.com/file/d/.../view" class="w-full px-3 py-2.5 bg-[#161b26] border border-[#2a2e39] rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500 transition-all font-mono-custom">
+            </div>
+
+            <!-- How-to Guide -->
+            <div class="bg-[#161b26]/50 border border-[#2a2e39] rounded-xl p-3.5 space-y-2 text-[11px] text-gray-400">
+                <p class="font-semibold text-gray-300">How to get a shareable link:</p>
+                <ol class="list-decimal list-inside space-y-1">
+                    <li>Open your CSV file in Google Drive.</li>
+                    <li>Click <span class="text-emerald-400 font-bold">Share</span> in the top-right corner.</li>
+                    <li>Set General Access to <span class="text-white">"Anyone with the link"</span>.</li>
+                    <li>Click <span class="text-emerald-400 font-bold">Copy link</span> and paste it above.</li>
+                </ol>
+            </div>
+
+            <div id="gdrive-loading" class="hidden text-center py-2 space-y-1.5">
+                <div class="inline-block w-6 h-6 border-3 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin"></div>
+                <p class="text-[10px] text-gray-400 font-mono-custom">Fetching cloud spreadsheet data...</p>
+            </div>
+
+            <div class="flex gap-3 pt-2">
+                <button id="btn-gdrive-cancel" class="flex-1 py-2.5 bg-[#1e2232] hover:bg-[#2c314b] text-xs font-semibold rounded-lg text-white transition">Cancel</button>
+                <button id="btn-gdrive-import" class="flex-1 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-[#0d0f17] text-xs font-bold rounded-lg transition shadow-lg shadow-emerald-500/5">Fetch & Load</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
