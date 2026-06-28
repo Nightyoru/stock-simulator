@@ -462,6 +462,9 @@
                     <span id="hud-pending-count" class="text-yellow-400 hidden">0 Pending</span>
                     <span class="text-gray-600">|</span>
                     <span class="text-gray-500">Zoom:<span id="hud-zoom" class="text-gray-300 ml-1">250</span></span>
+                    <button id="btn-toggle-pan" class="ml-auto px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded shadow text-[10px] transition-colors" title="Toggle Drag/Pan vs Place Orders">
+                        <span id="pan-mode-text" class="pointer-events-none">Pan/Zoom</span>
+                    </button>
                 </div>
 
                 <!-- Canvas Container -->
@@ -1657,9 +1660,28 @@
         // ──────────────────────────────────────────────────
         (function setupChartInteractions() {
             const cvs = canvas;
+            // ── Chart Interaction State ─────────────────────────────
+            let isChartLocked = false;
+            const btnTogglePan = document.getElementById('btn-toggle-pan');
+            const panModeText = document.getElementById('pan-mode-text');
+            if (btnTogglePan) {
+                btnTogglePan.addEventListener('click', () => {
+                    isChartLocked = !isChartLocked;
+                    if (isChartLocked) {
+                        btnTogglePan.className = "ml-auto px-2 py-0.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded shadow text-[10px] transition-colors";
+                        panModeText.textContent = "Orders (Locked)";
+                        cvs.style.cursor = 'crosshair';
+                    } else {
+                        btnTogglePan.className = "ml-auto px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded shadow text-[10px] transition-colors";
+                        panModeText.textContent = "Pan/Zoom";
+                        cvs.style.cursor = 'crosshair';
+                    }
+                });
+            }
 
             // ── Mouse Wheel Zoom ──────────────────────────────────
             cvs.addEventListener('wheel', (e) => {
+                if (isChartLocked) return;
                 e.preventDefault();
                 // deltaY < 0 = scroll up = zoom in (fewer candles)
                 const zoomDelta = e.deltaY > 0 ? 10 : -10;
@@ -1673,6 +1695,7 @@
             let dragStartOffset = 0;
 
             cvs.addEventListener('mousedown', (e) => {
+                if (isChartLocked) return;
                 // Only initiate drag on left button
                 if (e.button !== 0) return;
                 isDragging = true;
@@ -1689,8 +1712,8 @@
                 // How many pixels per candle?
                 const pixelsPerCandle = plotWidth / visibleCandles;
                 const deltaX = e.clientX - dragStartX;
-                // Dragging right = scrolling left in time (offset increases)
-                const candleDelta = Math.round(-deltaX / pixelsPerCandle);
+                // Dragging right = chart moves right (offset increases)
+                const candleDelta = Math.round(deltaX / pixelsPerCandle);
                 viewOffset = Math.max(0, dragStartOffset + candleDelta);
                 renderReplayChart();
             });
@@ -1715,6 +1738,7 @@
             }
 
             cvs.addEventListener('touchstart', (e) => {
+                if (isChartLocked) return;
                 if (e.touches.length === 1) {
                     touchStartX = e.touches[0].clientX;
                     touchStartOffset = viewOffset;
@@ -1726,13 +1750,15 @@
             }, { passive: false });
 
             cvs.addEventListener('touchmove', (e) => {
+                if (isChartLocked) return;
                 if (e.touches.length === 1) {
                     // Single-finger pan
                     const rect = cvs.getBoundingClientRect();
                     const plotWidth = rect.width - chartLayout.paddingLeft - chartLayout.paddingRight;
                     const pixelsPerCandle = plotWidth / visibleCandles;
                     const deltaX = e.touches[0].clientX - touchStartX;
-                    const candleDelta = Math.round(-deltaX / pixelsPerCandle);
+                    // Reversed panning logic for same direction
+                    const candleDelta = Math.round(deltaX / pixelsPerCandle);
                     viewOffset = Math.max(0, touchStartOffset + candleDelta);
                     renderReplayChart();
                 } else if (e.touches.length === 2) {
@@ -2652,82 +2678,124 @@ Use a professional, rigorous, and analytical tone. Reference actual execution ti
         }
 
         // ── Google Drive Link Parsing & Fetching ───────────────────────
-        (function setupGoogleDriveImporter() {
+        // Deferred until DOM is fully loaded so modal elements exist
+        document.addEventListener('DOMContentLoaded', function() {
             const modal = document.getElementById('gdrive-modal');
             const openBtn = document.getElementById('btn-gdrive-trigger');
             const cancelBtn = document.getElementById('btn-gdrive-cancel');
             const importBtn = document.getElementById('btn-gdrive-import');
             const linkInput = document.getElementById('gdrive-link-input');
             const loader = document.getElementById('gdrive-loading');
+            const statusEl = document.getElementById('gdrive-status');
+
+            if (!modal || !openBtn) {
+                console.warn('Google Drive modal elements not found.');
+                return;
+            }
 
             openBtn.addEventListener('click', () => {
                 modal.classList.remove('hidden');
                 linkInput.value = '';
+                if (statusEl) statusEl.textContent = '';
             });
 
             cancelBtn.addEventListener('click', () => {
                 modal.classList.add('hidden');
             });
 
+            // Close modal when clicking the backdrop
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.classList.add('hidden');
+            });
+
             importBtn.addEventListener('click', async () => {
                 const rawUrl = linkInput.value.trim();
                 if (!rawUrl) {
-                    alert('Please enter a valid Google Drive URL.');
+                    if (statusEl) statusEl.textContent = '⚠ Please paste a Google Drive link.';
                     return;
                 }
 
-                // Extract file ID from link
-                // Formats supported:
-                // 1) .../file/d/FILE_ID/view...
-                // 2) ...id=FILE_ID
-                // 3) .../d/FILE_ID/edit...
+                // Extract file ID from various Google Drive URL formats
                 let fileId = '';
-                const fileDMatch = rawUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
-                const idParamMatch = rawUrl.match(/[?&]id=([a-zA-Z0-9-_]+)/);
-                
-                if (fileDMatch) {
-                    fileId = fileDMatch[1];
-                } else if (idParamMatch) {
-                    fileId = idParamMatch[1];
-                } else {
-                    alert('Could not parse Google Drive File ID. Please make sure the URL format is correct.');
+                const patterns = [
+                    /\/d\/([a-zA-Z0-9_-]{20,})/,          // /d/FILE_ID/
+                    /[?&]id=([a-zA-Z0-9_-]{20,})/,        // ?id=FILE_ID
+                    /\/open\?id=([a-zA-Z0-9_-]{20,})/,    // /open?id=FILE_ID
+                ];
+                for (const pat of patterns) {
+                    const m = rawUrl.match(pat);
+                    if (m) { fileId = m[1]; break; }
+                }
+
+                if (!fileId) {
+                    if (statusEl) statusEl.textContent = '⚠ Could not extract File ID from URL. Check the link format.';
                     return;
                 }
 
                 loader.classList.remove('hidden');
                 importBtn.disabled = true;
+                if (statusEl) statusEl.textContent = 'Connecting to Google Drive...';
 
-                // Build direct download URL
-                // We use export format csv (works for Google Sheets) or uc (direct file download)
-                const directUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv`;
-                const fallbackUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+                // Build multiple download URL candidates
+                const downloadUrls = [
+                    // Direct download for uploaded files (CSV, etc.)
+                    `https://drive.google.com/uc?export=download&id=${fileId}`,
+                    // Export as CSV for Google Sheets
+                    `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv`,
+                ];
 
-                // To bypass CORS client-side, we route it through a CORS proxy
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(directUrl)}`;
-                const proxyFallbackUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(fallbackUrl)}`;
+                // Multiple CORS proxy services for reliability
+                const corsProxies = [
+                    (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                    (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+                    (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+                ];
 
-                try {
-                    // Try export format first
-                    let response = await fetch(proxyUrl);
-                    if (!response.ok) {
-                        // Fall back to direct file download
-                        response = await fetch(proxyFallbackUrl);
+                let csvText = null;
+                let lastError = '';
+
+                // Try each download URL with each proxy
+                for (const baseUrl of downloadUrls) {
+                    if (csvText) break;
+                    for (const proxyFn of corsProxies) {
+                        if (csvText) break;
+                        const fetchUrl = proxyFn(baseUrl);
+                        try {
+                            if (statusEl) statusEl.textContent = `Trying proxy...`;
+                            const resp = await fetch(fetchUrl, { signal: AbortSignal.timeout(15000) });
+                            if (!resp.ok) {
+                                lastError = `HTTP ${resp.status}`;
+                                continue;
+                            }
+                            const text = await resp.text();
+                            // Validate it looks like CSV (not an HTML error page)
+                            if (text.length > 10 && !text.trim().startsWith('<!DOCTYPE') && !text.trim().startsWith('<html')) {
+                                csvText = text;
+                            } else {
+                                lastError = 'Response was HTML, not CSV data';
+                            }
+                        } catch (e) {
+                            lastError = e.message || 'Network error';
+                        }
                     }
-                    if (!response.ok) throw new Error(`HTTP Status ${response.status}`);
-                    
-                    const text = await response.text();
-                    
-                    // Close modal and parse the CSV
+                }
+
+                loader.classList.add('hidden');
+                importBtn.disabled = false;
+
+                if (csvText) {
                     modal.classList.add('hidden');
-                    parseCSV(text, `gdrive_file_${fileId.substring(0, 6)}.csv`);
-                } catch (e) {
-                    alert(`Failed to fetch file from Google Drive: ${e.message}\nEnsure the file access is set to 'Anyone with the link can view'.`);
-                } finally {
-                    loader.classList.add('hidden');
-                    importBtn.disabled = false;
+                    if (statusEl) statusEl.textContent = '';
+                    parseCSV(csvText, `gdrive_${fileId.substring(0, 8)}.csv`);
+                } else {
+                    if (statusEl) {
+                        statusEl.textContent = `✖ Failed: ${lastError}. Make sure the file is set to "Anyone with the link can view".`;
+                    } else {
+                        alert(`Failed to fetch file from Google Drive: ${lastError}\nEnsure the file access is set to "Anyone with the link can view".`);
+                    }
                 }
             });
-        })();
+        });
     </script>
 
     <!-- GOOGLE DRIVE IMPORT MODAL -->
