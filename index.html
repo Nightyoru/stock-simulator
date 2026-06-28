@@ -952,6 +952,7 @@
                 if (headersLower.includes('date') && headersLower.includes('time')) format = 'tab_nas100';
                 else if (headersLower.includes('ts_event')) format = 'comma_mnq_v1';
                 else if (headersLower[0] === 'date') format = 'comma_mnq_v2';
+                else if (headersLower.includes('time')) format = 'comma_nas100_ohlc';
                 else throw new Error(`Unrecognised CSV format. Header: ${headerRaw.substring(0, 120)}`);
 
                 // Build column index map
@@ -981,13 +982,21 @@
                         timeVal = dt.getTime();
                         dateStr = dt.toISOString().substring(0, 10);
                         timeStr = dt.toISOString().substring(11, 19);
-                    } else { // comma_mnq_v2
+                    } else if (format === 'comma_mnq_v2') {
                         // Date = "2023-03-01 00:00:00+00:00"
                         const raw = cols[colIdx['date']].trim();
                         const dt = new Date(raw);
                         timeVal = dt.getTime();
                         dateStr = dt.toISOString().substring(0, 10);
                         timeStr = dt.toISOString().substring(11, 19);
+                    } else if (format === 'comma_nas100_ohlc') {
+                        // Time = "2026-01-02 01:00:00"
+                        const raw = cols[colIdx['time']].trim();
+                        const isoStr = raw.includes('T') ? raw : raw.replace(' ', 'T');
+                        const dt = new Date(isoStr);
+                        timeVal = dt.getTime();
+                        dateStr = raw.substring(0, 10);
+                        timeStr = raw.substring(11, 19);
                     }
 
                     if (isNaN(timeVal)) continue;
