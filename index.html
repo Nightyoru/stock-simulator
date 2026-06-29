@@ -866,19 +866,26 @@
 
             if (!text) return;
 
-            // Parse "api_key = <value>" format
+            // Parse "KEY = VALUE" format
             const lines = text.split(/\r?\n/);
             for (const line of lines) {
                 const trimmed = line.trim();
                 if (!trimmed || trimmed.startsWith('#')) continue;
-                const match = trimmed.match(/^api_key\s*=\s*(.+)$/i);
-                if (match) {
-                    const key = match[1].trim();
-                    // Pre-fill the start page input field
+                
+                // Match Gemini API Key
+                const geminiMatch = trimmed.match(/^(?:api_key|GEMINI_API_KEY)\s*=\s*(.+)$/i);
+                if (geminiMatch) {
+                    const key = geminiMatch[1].trim();
                     const inp = document.getElementById('api-key-input');
                     if (inp) inp.value = key;
-                    console.log('API key pre-filled from config.txt');
-                    return;
+                    console.log('Gemini API key pre-filled from config.txt');
+                }
+
+                // Match Google Drive Credential
+                const gdriveMatch = trimmed.match(/^Google_drive_credential\s*=\s*(.+)$/i);
+                if (gdriveMatch) {
+                    window.GOOGLE_CLIENT_ID = gdriveMatch[1].trim();
+                    console.log('Google Drive Client ID loaded from config.txt');
                 }
             }
         }
@@ -2680,167 +2687,226 @@ Use a professional, rigorous, and analytical tone. Reference actual execution ti
         // ── Google Drive Link Parsing & Fetching ───────────────────────
         // Deferred until DOM is fully loaded so modal elements exist
         document.addEventListener('DOMContentLoaded', function() {
+            const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
+            const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+
+            let tokenClient;
+            let gapiInited = false;
+            let gsiInited = false;
+
+            // Wait for both libraries to load
+            function checkBeforeInit() {
+                if (gapiInited && gsiInited) {
+                    document.getElementById('btn-gdrive-login').disabled = false;
+                    document.getElementById('gdrive-status').textContent = 'Ready to authenticate.';
+                }
+            }
+
+            // Expose to window so external scripts can call them
+            window.gapiLoad = function() {
+                gapi.load('client', async () => {
+                    await gapi.client.init({ discoveryDocs: [DISCOVERY_DOC] });
+                    gapiInited = true;
+                    checkBeforeInit();
+                });
+            };
+
+            window.gsiLoad = function() {
+                // Ensure Client ID is loaded (it might be loaded async from config.txt)
+                // We'll init it on click if it's not ready here
+                gsiInited = true;
+                checkBeforeInit();
+            };
+
             const modal = document.getElementById('gdrive-modal');
             const openBtn = document.getElementById('btn-gdrive-trigger');
-            const cancelBtn = document.getElementById('btn-gdrive-cancel');
-            const importBtn = document.getElementById('btn-gdrive-import');
-            const linkInput = document.getElementById('gdrive-link-input');
-            const loader = document.getElementById('gdrive-loading');
+            const closeBtn = document.getElementById('btn-gdrive-close');
+            const loginBtn = document.getElementById('btn-gdrive-login');
+            const logoutBtn = document.getElementById('btn-gdrive-logout');
+            const fileListEl = document.getElementById('gdrive-file-list');
             const statusEl = document.getElementById('gdrive-status');
+            const loader = document.getElementById('gdrive-loading');
 
-            if (!modal || !openBtn) {
-                console.warn('Google Drive modal elements not found.');
-                return;
-            }
+            if (!modal || !openBtn) return;
 
             openBtn.addEventListener('click', () => {
                 modal.classList.remove('hidden');
-                linkInput.value = '';
-                if (statusEl) statusEl.textContent = '';
+                if (gapi.client && gapi.client.getToken() !== null) {
+                    fetchDriveFiles();
+                }
             });
 
-            cancelBtn.addEventListener('click', () => {
+            closeBtn.addEventListener('click', () => {
                 modal.classList.add('hidden');
             });
 
-            // Close modal when clicking the backdrop
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) modal.classList.add('hidden');
             });
 
-            importBtn.addEventListener('click', async () => {
-                const rawUrl = linkInput.value.trim();
-                if (!rawUrl) {
-                    if (statusEl) statusEl.textContent = '⚠ Please paste a Google Drive link.';
+            // Login & Authorize
+            loginBtn.addEventListener('click', () => {
+                if (!window.GOOGLE_CLIENT_ID) {
+                    alert("Google Drive Client ID not found in config.txt!");
                     return;
                 }
-
-                // Extract file ID from various Google Drive URL formats
-                let fileId = '';
-                const patterns = [
-                    /\/d\/([a-zA-Z0-9_-]{20,})/,          // /d/FILE_ID/
-                    /[?&]id=([a-zA-Z0-9_-]{20,})/,        // ?id=FILE_ID
-                    /\/open\?id=([a-zA-Z0-9_-]{20,})/,    // /open?id=FILE_ID
-                ];
-                for (const pat of patterns) {
-                    const m = rawUrl.match(pat);
-                    if (m) { fileId = m[1]; break; }
-                }
-
-                if (!fileId) {
-                    if (statusEl) statusEl.textContent = '⚠ Could not extract File ID from URL. Check the link format.';
-                    return;
-                }
-
-                loader.classList.remove('hidden');
-                importBtn.disabled = true;
-                if (statusEl) statusEl.textContent = 'Connecting to Google Drive...';
-
-                // Build multiple download URL candidates
-                const downloadUrls = [
-                    // Direct download for uploaded files (CSV, etc.)
-                    `https://drive.google.com/uc?export=download&id=${fileId}`,
-                    // Export as CSV for Google Sheets
-                    `https://docs.google.com/spreadsheets/d/${fileId}/export?format=csv`,
-                ];
-
-                // Multiple CORS proxy services for reliability
-                const corsProxies = [
-                    (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-                    (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-                    (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-                ];
-
-                let csvText = null;
-                let lastError = '';
-
-                // Try each download URL with each proxy
-                for (const baseUrl of downloadUrls) {
-                    if (csvText) break;
-                    for (const proxyFn of corsProxies) {
-                        if (csvText) break;
-                        const fetchUrl = proxyFn(baseUrl);
-                        try {
-                            if (statusEl) statusEl.textContent = `Trying proxy...`;
-                            const resp = await fetch(fetchUrl, { signal: AbortSignal.timeout(15000) });
-                            if (!resp.ok) {
-                                lastError = `HTTP ${resp.status}`;
-                                continue;
+                
+                // Initialize token client if not done yet
+                if (!tokenClient) {
+                    tokenClient = google.accounts.oauth2.initTokenClient({
+                        client_id: window.GOOGLE_CLIENT_ID,
+                        scope: SCOPES,
+                        callback: async (resp) => {
+                            if (resp.error !== undefined) {
+                                statusEl.textContent = 'Auth error: ' + resp.error;
+                                throw (resp);
                             }
-                            const text = await resp.text();
-                            // Validate it looks like CSV (not an HTML error page)
-                            if (text.length > 10 && !text.trim().startsWith('<!DOCTYPE') && !text.trim().startsWith('<html')) {
-                                csvText = text;
-                            } else {
-                                lastError = 'Response was HTML, not CSV data';
-                            }
-                        } catch (e) {
-                            lastError = e.message || 'Network error';
-                        }
-                    }
+                            loginBtn.classList.add('hidden');
+                            logoutBtn.classList.remove('hidden');
+                            statusEl.textContent = 'Authenticated successfully!';
+                            await fetchDriveFiles();
+                        },
+                    });
                 }
 
-                loader.classList.add('hidden');
-                importBtn.disabled = false;
-
-                if (csvText) {
-                    modal.classList.add('hidden');
-                    if (statusEl) statusEl.textContent = '';
-                    parseCSV(csvText, `gdrive_${fileId.substring(0, 8)}.csv`);
+                if (gapi.client.getToken() === null) {
+                    tokenClient.requestAccessToken({prompt: 'consent'});
                 } else {
-                    if (statusEl) {
-                        statusEl.textContent = `✖ Failed: ${lastError}. Make sure the file is set to "Anyone with the link can view".`;
-                    } else {
-                        alert(`Failed to fetch file from Google Drive: ${lastError}\nEnsure the file access is set to "Anyone with the link can view".`);
-                    }
+                    tokenClient.requestAccessToken({prompt: ''});
                 }
             });
+
+            // Logout
+            logoutBtn.addEventListener('click', () => {
+                const token = gapi.client.getToken();
+                if (token !== null) {
+                    google.accounts.oauth2.revokeToken(token.access_token);
+                    gapi.client.setToken(null);
+                    fileListEl.innerHTML = '';
+                    loginBtn.classList.remove('hidden');
+                    logoutBtn.classList.add('hidden');
+                    statusEl.textContent = 'Signed out.';
+                }
+            });
+
+            // Fetch recent CSV/Spreadsheet files
+            async function fetchDriveFiles() {
+                loader.classList.remove('hidden');
+                fileListEl.innerHTML = '';
+                statusEl.textContent = 'Fetching files...';
+
+                try {
+                    const response = await gapi.client.drive.files.list({
+                        'pageSize': 15,
+                        'fields': 'files(id, name, mimeType)',
+                        'q': "mimeType='text/csv' or mimeType='application/vnd.google-apps.spreadsheet'",
+                        'orderBy': 'modifiedTime desc'
+                    });
+                    
+                    const files = response.result.files;
+                    loader.classList.add('hidden');
+
+                    if (!files || files.length === 0) {
+                        statusEl.textContent = 'No CSV or Spreadsheet files found.';
+                        return;
+                    }
+
+                    statusEl.textContent = 'Select a file to load:';
+
+                    files.forEach(file => {
+                        const btn = document.createElement('button');
+                        btn.className = "w-full text-left px-3 py-2 bg-[#1e2232] hover:bg-[#2c314b] rounded-lg text-xs text-gray-300 font-mono-custom transition-colors flex items-center justify-between";
+                        btn.innerHTML = `
+                            <span class="truncate pr-2">${file.name}</span>
+                            <span class="text-[9px] text-gray-500 flex-shrink-0">${file.mimeType.includes('spreadsheet') ? 'Sheet' : 'CSV'}</span>
+                        `;
+                        
+                        btn.onclick = () => downloadFile(file.id, file.name, file.mimeType);
+                        fileListEl.appendChild(btn);
+                    });
+
+                } catch (err) {
+                    loader.classList.add('hidden');
+                    statusEl.textContent = 'Error fetching files: ' + err.message;
+                }
+            }
+
+            // Download file contents and parse
+            async function downloadFile(fileId, fileName, mimeType) {
+                loader.classList.remove('hidden');
+                statusEl.textContent = `Downloading ${fileName}...`;
+                try {
+                    let response;
+                    if (mimeType === 'application/vnd.google-apps.spreadsheet') {
+                        // Export Sheets to CSV
+                        response = await gapi.client.drive.files.export({
+                            fileId: fileId,
+                            mimeType: 'text/csv'
+                        });
+                    } else {
+                        // Direct download for raw files
+                        response = await gapi.client.drive.files.get({
+                            fileId: fileId,
+                            alt: 'media'
+                        });
+                    }
+                    
+                    const csvText = response.body;
+                    modal.classList.add('hidden');
+                    statusEl.textContent = '';
+                    parseCSV(csvText, fileName);
+                    
+                } catch (err) {
+                    statusEl.textContent = 'Failed to download file: ' + err.message;
+                } finally {
+                    loader.classList.add('hidden');
+                }
+            }
         });
     </script>
 
     <!-- GOOGLE DRIVE IMPORT MODAL -->
     <div id="gdrive-modal" class="hidden fixed inset-0 z-50 bg-[#0d0f17]/80 backdrop-blur-md flex items-center justify-center p-4">
-        <div class="w-full max-w-md bg-[#131722] border border-[#2a2e39] rounded-2xl p-6 space-y-4 shadow-2xl">
-            <div class="flex items-center gap-3">
-                <div class="p-2 bg-emerald-500/10 rounded-lg">
-                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M9.167 4.25h5.666l6.834 11.5H16L9.167 4.25z" fill="#0066DA"/>
-                        <path d="M14.833 15.75H3.167L6.5 21.5h11.667l-3.334-5.75z" fill="#00AC47"/>
-                        <path d="M3.167 15.75L9.167 4.25 12.5 10l-6 10-3.333-4.25z" fill="#FFC107"/>
-                    </svg>
+        <div class="w-full max-w-md bg-[#131722] border border-[#2a2e39] rounded-2xl p-6 space-y-4 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-emerald-500/10 rounded-lg">
+                        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9.167 4.25h5.666l6.834 11.5H16L9.167 4.25z" fill="#0066DA"/>
+                            <path d="M14.833 15.75H3.167L6.5 21.5h11.667l-3.334-5.75z" fill="#00AC47"/>
+                            <path d="M3.167 15.75L9.167 4.25 12.5 10l-6 10-3.333-4.25z" fill="#FFC107"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white">Import from Google Drive</h3>
+                        <p class="text-xs text-gray-400">Securely load your files via API</p>
+                    </div>
                 </div>
-                <div>
-                    <h3 class="text-sm font-bold text-white">Import from Google Drive</h3>
-                    <p class="text-xs text-gray-400">Load your financial CSV bars directly from the cloud</p>
-                </div>
+                <button id="btn-gdrive-close" class="text-gray-400 hover:text-white p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
             </div>
 
-            <div class="space-y-2">
-                <label class="block text-xs font-semibold text-gray-400">Google Drive Share Link</label>
-                <input type="text" id="gdrive-link-input" placeholder="https://drive.google.com/file/d/.../view" class="w-full px-3 py-2.5 bg-[#161b26] border border-[#2a2e39] rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500 transition-all font-mono-custom">
+            <div class="flex items-center justify-between gap-3 pt-2">
+                <button id="btn-gdrive-login" class="flex-1 py-2 bg-[#4285F4] hover:bg-[#3367D6] text-xs font-bold rounded-lg text-white transition disabled:opacity-50" disabled>Log In & Authorize</button>
+                <button id="btn-gdrive-logout" class="flex-1 py-2 bg-[#1e2232] hover:bg-[#2c314b] text-xs font-semibold rounded-lg text-white transition hidden">Sign Out</button>
             </div>
 
-            <!-- How-to Guide -->
-            <div class="bg-[#161b26]/50 border border-[#2a2e39] rounded-xl p-3.5 space-y-2 text-[11px] text-gray-400">
-                <p class="font-semibold text-gray-300">How to get a shareable link:</p>
-                <ol class="list-decimal list-inside space-y-1">
-                    <li>Open your CSV file in Google Drive.</li>
-                    <li>Click <span class="text-emerald-400 font-bold">Share</span> in the top-right corner.</li>
-                    <li>Set General Access to <span class="text-white">"Anyone with the link"</span>.</li>
-                    <li>Click <span class="text-emerald-400 font-bold">Copy link</span> and paste it above.</li>
-                </ol>
-            </div>
+            <p id="gdrive-status" class="text-xs font-semibold text-yellow-400 text-center">Loading Google APIs...</p>
 
-            <div id="gdrive-loading" class="hidden text-center py-2 space-y-1.5">
+            <div id="gdrive-loading" class="hidden text-center py-4 space-y-2">
                 <div class="inline-block w-6 h-6 border-3 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin"></div>
-                <p class="text-[10px] text-gray-400 font-mono-custom">Fetching cloud spreadsheet data...</p>
             </div>
 
-            <div class="flex gap-3 pt-2">
-                <button id="btn-gdrive-cancel" class="flex-1 py-2.5 bg-[#1e2232] hover:bg-[#2c314b] text-xs font-semibold rounded-lg text-white transition">Cancel</button>
-                <button id="btn-gdrive-import" class="flex-1 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-[#0d0f17] text-xs font-bold rounded-lg transition shadow-lg shadow-emerald-500/5">Fetch & Load</button>
+            <!-- Scrollable File List -->
+            <div id="gdrive-file-list" class="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                <!-- Buttons injected via JS -->
             </div>
         </div>
     </div>
+
+    <!-- Official Google API Scripts -->
+    <script async defer src="https://apis.google.com/js/api.js" onload="window.gapiLoad()"></script>
+    <script async defer src="https://accounts.google.com/gsi/client" onload="window.gsiLoad()"></script>
 </body>
 </html>
