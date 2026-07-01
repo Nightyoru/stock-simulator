@@ -768,6 +768,7 @@
         
         // Global simulation variables
         let rawCandles = []; // Contains original parsed 1m candles
+        let estOffsetHours = 0; // Dynamically inferred offset from EST
         let parsedDates = new Set(); // Available starting dates (YYYY-MM-DD strings)
         let simTimeIndex = 0; // The active 1-minute global pointer index
         let gameStartIndex = 0; // Index in rawCandles where the player's selected date begins
@@ -1038,6 +1039,36 @@
 
                 rawCandles = parsedList;
                 parsedDates = tempDates;
+
+                // ── Auto-Detect Timezone based on Daily Gap ─────────
+                estOffsetHours = 0; // reset
+                if (rawCandles.length > 100) {
+                    const gaps = [];
+                    for (let i = 0; i < Math.min(rawCandles.length - 1, 10000); i++) {
+                        const diff = rawCandles[i+1].time - rawCandles[i].time;
+                        // Daily gaps are typically 1 hr (futures) or 17.5 hrs (cash)
+                        if (diff >= 45 * 60000 && diff < 22 * 3600000) {
+                            gaps.push({ diff, start: rawCandles[i], end: rawCandles[i+1] });
+                        }
+                    }
+                    if (gaps.length > 0) {
+                        const typicalGap = gaps[0];
+                        const startD = new Date(typicalGap.start.time);
+                        const endD = new Date(typicalGap.end.time);
+                        const startHour = startD.getHours() + startD.getMinutes() / 60;
+                        const endHour = endD.getHours() + endD.getMinutes() / 60;
+
+                        if (typicalGap.diff <= 3 * 3600000) { 
+                            // Futures (halt usually 1 hour starting at 17:00 EST)
+                            estOffsetHours = Math.round((startHour - 17.0) * 2) / 2;
+                        } else {
+                            // Cash (halt ~17.5 hours ending at 09:30 EST)
+                            estOffsetHours = Math.round((endHour - 9.5) * 2) / 2;
+                        }
+                        console.log(`Detected daily gap of ${(typicalGap.diff / 3600000).toFixed(1)} hrs. Inferred EST offset: ${estOffsetHours} hrs`);
+                    }
+                }
+                // ────────────────────────────────────────────────────
 
                 // Adjust UI
                 document.getElementById('upload-prompt').classList.add('hidden');
@@ -1457,6 +1488,111 @@
                 ctx.textAlign = "left";
                 ctx.fillText(priceLabel.toFixed(1), width - paddingRight + 8, y + 3);
             }
+
+            // Vertical Grid Lines (Time Axis) & Session Highlights
+            let lastLabelX = -100;
+            ctx.textAlign = "center";
+            
+            displayCandles.forEach((c, index) => {
+                const x = paddingLeft + (index * candleWidth) + candleWidth / 2;
+                const d = new Date(c.time);
+                const h = d.getHours();
+                const m = d.getMinutes();
+                
+                // 1. Session Open Lines with Dynamic Timezone Offset
+                let isLondonOpen = false;
+                let isNYOpen = false;
+                
+                // Calculate target hours based on timezone offset
+                const targetNY = (9.5 + estOffsetHours + 24) % 24;
+                const targetLondon = (3.0 + estOffsetHours + 24) % 24;
+                
+                if (index > 0) {
+                    const prevD = new Date(displayCandles[index - 1].time);
+                    const prevH = prevD.getHours();
+                    const prevM = prevD.getMinutes();
+                    
+                    const currTime = h + m / 60;
+                    const prevTime = prevH + prevM / 60;
+                    
+                    if (prevTime < targetLondon && currTime >= targetLondon && prevD.getDate() === d.getDate()) {
+                        isLondonOpen = true;
+                    }
+                    if (prevTime < targetNY && currTime >= targetNY && prevD.getDate() === d.getDate()) {
+                        isNYOpen = true;
+                    }
+                } else {
+                    const currTime = h + m / 60;
+                    isLondonOpen = (currTime === targetLondon);
+                    isNYOpen = (currTime === targetNY);
+                }
+                
+                if (isLondonOpen || isNYOpen) {
+                    ctx.save();
+                    ctx.strokeStyle = isNYOpen ? 'rgba(59,130,246,0.5)' : 'rgba(249,115,22,0.5)'; // blue for NY, orange for London
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath();
+                    ctx.moveTo(x, 30);
+                    ctx.lineTo(x, height - 40);
+                    ctx.stroke();
+                    
+                    // Session Label inside the chart area
+                    ctx.fillStyle = isNYOpen ? '#3b82f6' : '#f97316';
+                    ctx.font = "bold 9px sans-serif";
+                    ctx.fillText(isNYOpen ? 'NY Open' : 'LON Open', x, height - 45);
+                    ctx.restore();
+                }
+
+                // 2. X-Axis Time Labels
+                const isNewDay = (h === 0 && m === 0);
+                
+                // If not new day, check if a new day is coming soon to prevent label overlap
+                let newDayUpcoming = false;
+                if (!isNewDay) {
+                    for (let j = index + 1; j < displayCandles.length; j++) {
+                        const nextX = paddingLeft + (j * candleWidth) + candleWidth / 2;
+                        if (nextX - x > 70) break;
+                        const nextD = new Date(displayCandles[j].time);
+                        if (nextD.getHours() === 0 && nextD.getMinutes() === 0) {
+                            newDayUpcoming = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (isNewDay || (!newDayUpcoming && (x - lastLabelX > 70))) {
+                    ctx.fillStyle = isNewDay ? "#e2e8f0" : "#8a91a5"; 
+                    ctx.font = isNewDay ? "bold 10px 'JetBrains Mono'" : "10px 'JetBrains Mono'";
+                    
+                    if (isNewDay) {
+                        const month = d.toLocaleString('default', { month: 'short' });
+                        const dateStr = `${month} ${d.getDate()}`;
+                        ctx.fillText(dateStr, x, height - 20);
+                        
+                        // Draw vertical faint line for day separator
+                        ctx.save();
+                        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+                        ctx.beginPath();
+                        ctx.moveTo(x, 30);
+                        ctx.lineTo(x, height - 40);
+                        ctx.stroke();
+                        ctx.restore();
+                    } else {
+                        const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                        ctx.fillText(timeStr, x, height - 20);
+                    }
+                    
+                    // Tick mark on axis
+                    ctx.strokeStyle = "#8a91a5";
+                    ctx.beginPath();
+                    ctx.moveTo(x, height - 40);
+                    ctx.lineTo(x, height - 35);
+                    ctx.stroke();
+                    
+                    lastLabelX = x;
+                }
+            });
 
             // Draw Candlesticks & 50 MA paths
             ctx.lineWidth = 1.5;
