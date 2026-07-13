@@ -20,7 +20,7 @@ Option A: Start a Quick Local HTTP Server (Recommended)
   3. Open your web browser and go to:
      http://localhost:8000/interactive_web_simulator.html
   4. (This method also allows you to access the simulator on your iPhone 
-      by visiting http://<your-computer-ip>:8000/interactive_web_simulator.html)
+      by visiting [http://<your-computer-ip>:8000/interactive_web_simulator.html)](https://nightyoru.github.io/stock-simulator/)
 Option B: Direct Double-Click (Fallback)
   1. Double-click "interactive_web_simulator.html" to open it.
   2. If the API key is not read automatically due to CORS, you can simply 
