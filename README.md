@@ -18,7 +18,7 @@ Option A: Start a Quick Local HTTP Server (Recommended)
   2. Start a Python web server:
      python -m http.server 8000
   3. Open your web browser and go to:
-     http://localhost:8000/interactive_web_simulator.html
+     [http://<your-computer-ip>:8000/interactive_web_simulator.html)](https://nightyoru.github.io/stock-simulator/)
   4. (This method also allows you to access the simulator on your iPhone 
       by visiting [http://<your-computer-ip>:8000/interactive_web_simulator.html)](https://nightyoru.github.io/stock-simulator/)
 Option B: Direct Double-Click (Fallback)
