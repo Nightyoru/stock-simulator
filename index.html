@@ -457,6 +457,7 @@
                     <span class="text-gray-500">C:<span id="ohlc-close" class="text-white ml-1 font-bold">0</span></span>
                     <span class="text-gray-600">|</span>
                     <span class="text-gray-500">MA50:<span id="hud-ma" class="text-yellow-400 ml-1">—</span></span>
+                    <span class="text-gray-500">Vol:<span id="hud-vol" class="text-purple-400 ml-1">—</span></span>
                     <span class="text-gray-600">|</span>
                     <span id="pnl-marker" class="font-bold text-gray-500">Flat</span>
                     <span id="hud-pending-count" class="text-yellow-400 hidden">0 Pending</span>
@@ -943,10 +944,12 @@
         }
 
         // ── Auto-detecting multi-format CSV parser ──────────────────────────
-        // Supports 3 formats:
+        // Supports 5 formats:
         //   1) Tab-separated: <DATE>\t<TIME>\t<OPEN>\t...  (NAS100_M1_*.csv)
         //   2) Comma-separated with ts_event column       (MNQ202003*.csv)
         //   3) Comma-separated with Date column            (MNQ202303*.csv)
+        //   4) Comma-separated with Time column            (comma_nas100_ohlc)
+        //   5) Comma-separated with 'timestamp ET' column  (Dataset_NQ_1min_2022_2025.csv)
         function parseCSV(text, filename) {
             try {
                 const lines = text.split(/\r?\n/);
@@ -962,6 +965,7 @@
                 let format = 'unknown';
                 if (headersLower.includes('date') && headersLower.includes('time')) format = 'tab_nas100';
                 else if (headersLower.includes('ts_event')) format = 'comma_mnq_v1';
+                else if (headersLower.includes('timestamp et')) format = 'comma_timestamp_et';
                 else if (headersLower[0] === 'date') format = 'comma_mnq_v2';
                 else if (headersLower.includes('time')) format = 'comma_nas100_ohlc';
                 else throw new Error(`Unrecognised CSV format. Header: ${headerRaw.substring(0, 120)}`);
@@ -1000,6 +1004,23 @@
                         timeVal = dt.getTime();
                         dateStr = dt.toISOString().substring(0, 10);
                         timeStr = dt.toISOString().substring(11, 19);
+                    } else if (format === 'comma_timestamp_et') {
+                        // timestamp ET = "12/26/2022 18:01" (M/D/YYYY H:MM or MM/DD/YYYY HH:MM)
+                        const raw = cols[colIdx['timestamp et']].trim();
+                        // Parse M/D/YYYY H:MM format
+                        const spaceIdx = raw.indexOf(' ');
+                        const datePart = raw.substring(0, spaceIdx); // M/D/YYYY
+                        const timePart = raw.substring(spaceIdx + 1); // H:MM or HH:MM
+                        const datePieces = datePart.split('/');
+                        const month = datePieces[0].padStart(2, '0');
+                        const day = datePieces[1].padStart(2, '0');
+                        const year = datePieces[2];
+                        const timePieces = timePart.split(':');
+                        const hour = timePieces[0].padStart(2, '0');
+                        const minute = timePieces[1].padStart(2, '0');
+                        dateStr = `${year}-${month}-${day}`;
+                        timeStr = `${hour}:${minute}:00`;
+                        timeVal = new Date(`${dateStr}T${timeStr}`).getTime();
                     } else if (format === 'comma_nas100_ohlc') {
                         // Time = "2026-01-02 01:00:00"
                         const raw = cols[colIdx['time']].trim();
@@ -1019,6 +1040,9 @@
 
                     if (isNaN(open) || isNaN(close)) continue;
 
+                    // Parse volume (may not exist in all formats)
+                    const vol = colIdx['volume'] !== undefined ? parseFloat(cols[colIdx['volume']]) : 0;
+
                     parsedList.push({
                         time: timeVal,
                         dateStr: dateStr,
@@ -1026,7 +1050,8 @@
                         open: open,
                         high: isNaN(high) ? Math.max(open, close) : high,
                         low: isNaN(low) ? Math.min(open, close) : low,
-                        close: close
+                        close: close,
+                        volume: isNaN(vol) ? 0 : vol
                     });
 
                     tempDates.add(dateStr);
@@ -1119,7 +1144,8 @@
                     open: Math.round(open * 100) / 100,
                     high: Math.round(high * 100) / 100,
                     low: Math.round(low * 100) / 100,
-                    close: Math.round(close * 100) / 100
+                    close: Math.round(close * 100) / 100,
+                    volume: Math.floor(Math.random() * 500) + 50
                 });
 
                 tempDates.add(dateYMD);
@@ -1379,11 +1405,12 @@
 
                     if (!currentGroup || currentGroup.time !== intervalStart) {
                         if (currentGroup) aggregated.push(currentGroup);
-                        currentGroup = { time: intervalStart, open: b.open, high: b.high, low: b.low, close: b.close };
+                        currentGroup = { time: intervalStart, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 };
                     } else {
                         currentGroup.high = Math.max(currentGroup.high, b.high);
                         currentGroup.low = Math.min(currentGroup.low, b.low);
                         currentGroup.close = b.close;
+                        currentGroup.volume = (currentGroup.volume || 0) + (b.volume || 0);
                     }
                 }
                 if (currentGroup) aggregated.push(currentGroup);
@@ -1594,6 +1621,41 @@
                 }
             });
 
+            // ── Draw Volume Bars (bottom 20% of chart, behind candles) ──────
+            const volumeZoneTop = height - 40;   // bottom of price area
+            const volumeZoneH = (height - 80) * 0.20; // 20% of plot height
+            const volumeZoneBottom = volumeZoneTop;
+            const volumeZoneTopY = volumeZoneBottom - volumeZoneH;
+
+            // Find max volume for scaling
+            let maxVol = 0;
+            displayCandles.forEach(c => {
+                const v = c.volume || 0;
+                if (v > maxVol) maxVol = v;
+            });
+
+            if (maxVol > 0) {
+                displayCandles.forEach((c, index) => {
+                    const v = c.volume || 0;
+                    if (v <= 0) return;
+                    const x = paddingLeft + (index * candleWidth) + candleWidth / 2;
+                    const barH = (v / maxVol) * volumeZoneH;
+                    const barY = volumeZoneBottom - barH;
+                    const isGreen = c.close >= c.open;
+
+                    // Determine if in history zone
+                    const isHistory = gameStartTime !== null && c.time < gameStartTime;
+                    const alpha = isHistory ? 0.12 : 0.25;
+
+                    ctx.fillStyle = isGreen
+                        ? `rgba(38,166,154,${alpha})`
+                        : `rgba(239,83,80,${alpha})`;
+
+                    const barW = Math.max(candleWidth - bodySpacing - 1, 1);
+                    ctx.fillRect(x - barW / 2, barY, barW, barH);
+                });
+            }
+
             // Draw Candlesticks & 50 MA paths
             ctx.lineWidth = 1.5;
             const maPoints = [];
@@ -1793,6 +1855,8 @@
                 document.getElementById('ohlc-low').innerText = lastCandle.low.toFixed(1);
                 document.getElementById('ohlc-close').innerText = lastCandle.close.toFixed(1);
                 document.getElementById('hud-ma').innerText = lastCandle.ma50 ? lastCandle.ma50.toFixed(1) : '—';
+                const volVal = lastCandle.volume || 0;
+                document.getElementById('hud-vol').innerText = volVal >= 1000 ? (volVal / 1000).toFixed(1) + 'K' : volVal.toString();
             }
             const zoomEl = document.getElementById('hud-zoom');
             if (zoomEl) zoomEl.innerText = visibleCandles;
